@@ -1,21 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #ifndef _TRACE_VIEW_H
 #define _TRACE_VIEW_H
@@ -34,8 +20,8 @@ void trace_view_reload(GtkWidget *view, struct tracecmd_input *handle,
 void trace_view(int argc, char **argv);
 
 void trace_view_update_filters(GtkWidget *treeview,
-			       struct filter_task *task_filter,
-			       struct filter_task *hide_tasks);
+			       struct tracecmd_filter_id *task_filter,
+			       struct tracecmd_filter_id *hide_tasks);
 
 void trace_view_make_selection_visible(GtkWidget *treeview);
 

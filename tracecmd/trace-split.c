@@ -1,21 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #define _LARGEFILE64_SOURCE
 #include <dirent.h>
@@ -55,7 +41,7 @@ enum split_types {
 struct cpu_data {
 	unsigned long long		ts;
 	unsigned long long		offset;
-	struct pevent_record		*record;
+	struct tep_record		*record;
 	int				cpu;
 	int				fd;
 	int				index;
@@ -64,7 +50,7 @@ struct cpu_data {
 	char				*file;
 };
 
-static int create_type_len(struct pevent *pevent, int time, int len)
+static int create_type_len(struct tep_handle *pevent, int time, int len)
 {
 	static int bigendian = -1;
 	char *ptr;
@@ -88,12 +74,12 @@ static int create_type_len(struct pevent *pevent, int time, int len)
 }
 
 static int write_record(struct tracecmd_input *handle,
-			struct pevent_record *record,
+			struct tep_record *record,
 			struct cpu_data *cpu_data,
 			enum split_types type)
 {
 	unsigned long long diff;
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 	void *page;
 	int len;
 	char *ptr;
@@ -153,7 +139,7 @@ static int write_record(struct tracecmd_input *handle,
 	return 1;
 }
 
-static void write_page(struct pevent *pevent,
+static void write_page(struct tep_handle *pevent,
 		       struct cpu_data *cpu_data, int long_size)
 {
 	if (long_size == 8)
@@ -165,8 +151,8 @@ static void write_page(struct pevent *pevent,
 	write(cpu_data->fd, cpu_data->page, page_size);
 }
 
-static struct pevent_record *read_record(struct tracecmd_input *handle,
-				  int percpu, int *cpu)
+static struct tep_record *read_record(struct tracecmd_input *handle,
+				      int percpu, int *cpu)
 {
 	if (percpu)
 		return tracecmd_read_data(handle, *cpu);
@@ -194,8 +180,8 @@ static int parse_cpu(struct tracecmd_input *handle,
 		     int count_limit, int percpu, int cpu,
 		     enum split_types type)
 {
-	struct pevent_record *record;
-	struct pevent *pevent;
+	struct tep_record *record;
+	struct tep_handle *pevent;
 	void *ptr;
 	int page_size;
 	int long_size = 0;
@@ -347,7 +333,7 @@ static double parse_file(struct tracecmd_input *handle,
 	unsigned long long current;
 	struct tracecmd_output *ohandle;
 	struct cpu_data *cpu_data;
-	struct pevent_record *record;
+	struct tep_record *record;
 	char **cpu_list;
 	char *output;
 	char *base;

@@ -1,21 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -301,8 +287,8 @@ void trace_view_make_selection_visible(GtkWidget *treeview)
 }
 
 void trace_view_update_filters(GtkWidget *treeview,
-			       struct filter_task *task_filter,
-			       struct filter_task *hide_tasks)
+			       struct tracecmd_filter_id *task_filter,
+			       struct tracecmd_filter_id *hide_tasks)
 {
 	GtkTreeView *tree = GTK_TREE_VIEW(treeview);
 	TraceViewRecord *vrec;
@@ -477,17 +463,17 @@ void trace_view_adv_filter_callback(gboolean accept,
 
 	if (event_ids) {
 		for (i = 0; event_ids[i] >= 0; i++)
-			pevent_filter_remove_event(event_filter, event_ids[i]);
+			tep_filter_remove_event(event_filter, event_ids[i]);
 	}
 
 	if (has_text(text)) {
 
 		trace_view_store_clear_all_events_enabled(store);
 
-		ret = pevent_filter_add_filter_str(event_filter, text);
+		ret = tep_filter_add_filter_str(event_filter, text);
 		if (ret < 0) {
-			pevent_strerror(event_filter->pevent, ret,
-					error_str, sizeof(error_str));
+			tep_strerror(event_filter->pevent, ret,
+				     error_str, sizeof(error_str));
 			warning("filter failed due to: %s", error_str);
 			return;
 		}
@@ -523,7 +509,7 @@ void trace_view_copy_filter(GtkWidget *treeview,
 
 		event_filter = trace_view_store_get_event_filter(store);
 
-		pevent_filter_copy(event_filter, src_event_filter);
+		tep_filter_copy(event_filter, src_event_filter);
 	}
 
 	update_rows(trace_tree, store);

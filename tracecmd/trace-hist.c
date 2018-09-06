@@ -1,21 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2013 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  *
  * Several of the ideas in this file came from Arnaldo Carvalho de Melo's
  * work on the perf ui.
@@ -28,6 +13,7 @@
 #include <getopt.h>
 #include <signal.h>
 
+#include "trace-hash-local.h"
 #include "trace-local.h"
 #include "list.h"
 
@@ -266,7 +252,7 @@ static void pop_stack_func(void)
 }
 
 static void
-process_function(struct pevent *pevent, struct pevent_record *record)
+process_function(struct tep_handle *pevent, struct tep_record *record)
 {
 	unsigned long long parent_ip;
 	unsigned long long ip;
@@ -276,22 +262,22 @@ process_function(struct pevent *pevent, struct pevent_record *record)
 	int pid;
 	int ret;
 
-	ret = pevent_read_number_field(common_pid_field, record->data, &val);
+	ret = tep_read_number_field(common_pid_field, record->data, &val);
 	if (ret < 0)
 		die("no pid field for function?");
 
-	ret = pevent_read_number_field(function_ip_field, record->data, &ip);
+	ret = tep_read_number_field(function_ip_field, record->data, &ip);
 	if (ret < 0)
 		die("no ip field for function?");
 
-	ret = pevent_read_number_field(function_parent_ip_field, record->data, &parent_ip);
+	ret = tep_read_number_field(function_parent_ip_field, record->data, &parent_ip);
 	if (ret < 0)
 		die("no parent ip field for function?");
 
 	pid = val;
 
-	func = pevent_find_function(pevent, ip);
-	parent = pevent_find_function(pevent, parent_ip);
+	func = tep_find_function(pevent, ip);
+	parent = tep_find_function(pevent, parent_ip);
 
 	if (current_pid >= 0 && pid != current_pid) {
 		save_stack();
@@ -323,7 +309,7 @@ process_function(struct pevent *pevent, struct pevent_record *record)
 }
 
 static void
-process_function_graph_entry(struct pevent *pevent, struct pevent_record *record)
+process_function_graph_entry(struct tep_handle *pevent, struct tep_record *record)
 {
 	unsigned long long depth;
 	unsigned long long ip;
@@ -332,23 +318,23 @@ process_function_graph_entry(struct pevent *pevent, struct pevent_record *record
 	int pid;
 	int ret;
 
-	ret = pevent_read_number_field(common_pid_field, record->data, &val);
+	ret = tep_read_number_field(common_pid_field, record->data, &val);
 	if (ret < 0)
 		die("no pid field for function graph entry?");
 
-	ret = pevent_read_number_field(function_graph_entry_func_field,
-				       record->data, &ip);
+	ret = tep_read_number_field(function_graph_entry_func_field,
+				    record->data, &ip);
 	if (ret < 0)
 		die("no ip field for function graph entry?");
 
-	ret = pevent_read_number_field(function_graph_entry_depth_field,
-				       record->data, &depth);
+	ret = tep_read_number_field(function_graph_entry_depth_field,
+				    record->data, &depth);
 	if (ret < 0)
 		die("no parent ip field for function entry?");
 
 	pid = val;
 
-	func = pevent_find_function(pevent, ip);
+	func = tep_find_function(pevent, ip);
 
 	if (current_pid >= 0 && pid != current_pid) {
 		save_stack();
@@ -369,19 +355,19 @@ process_function_graph_entry(struct pevent *pevent, struct pevent_record *record
 }
 
 static void
-process_function_graph_exit(struct pevent *pevent, struct pevent_record *record)
+process_function_graph_exit(struct tep_handle *pevent, struct tep_record *record)
 {
 	unsigned long long depth;
 	unsigned long long val;
 	int pid;
 	int ret;
 
-	ret = pevent_read_number_field(common_pid_field, record->data, &val);
+	ret = tep_read_number_field(common_pid_field, record->data, &val);
 	if (ret < 0)
 		die("no pid field for function graph exit?");
 
-	ret = pevent_read_number_field(function_graph_exit_depth_field,
-				       record->data, &depth);
+	ret = tep_read_number_field(function_graph_exit_depth_field,
+				    record->data, &depth);
 	if (ret < 0)
 		die("no parent ip field for function?");
 
@@ -424,7 +410,7 @@ static void copy_stack_to_pending(int pid)
 }
 
 static void
-process_kernel_stack(struct pevent *pevent, struct pevent_record *record)
+process_kernel_stack(struct tep_handle *pevent, struct tep_record *record)
 {
 	struct format_field *field = kernel_stack_caller_field;
 	unsigned long long val;
@@ -433,7 +419,7 @@ process_kernel_stack(struct pevent *pevent, struct pevent_record *record)
 	int pid;
 	int ret;
 
-	ret = pevent_read_number_field(common_pid_field, record->data, &val);
+	ret = tep_read_number_field(common_pid_field, record->data, &val);
 	if (ret < 0)
 		die("no pid field for function?");
 	pid = val;
@@ -467,7 +453,7 @@ process_kernel_stack(struct pevent *pevent, struct pevent_record *record)
 	     data += long_size) {
 		unsigned long long addr;
 
-		addr = pevent_read_number(pevent, data, long_size);
+		addr = tep_read_number(pevent, data, long_size);
 
 		if ((long_size == 8 && addr == (unsigned long long)-1) ||
 		    ((int)addr == -1))
@@ -478,8 +464,8 @@ process_kernel_stack(struct pevent *pevent, struct pevent_record *record)
 		unsigned long long addr;
 		const char *func;
 
-		addr = pevent_read_number(pevent, data, long_size);
-		func = pevent_find_function(pevent, addr);
+		addr = tep_read_number(pevent, data, long_size);
+		func = tep_find_function(pevent, addr);
 		if (func)
 			push_stack_func(func);
 	}
@@ -494,7 +480,7 @@ process_kernel_stack(struct pevent *pevent, struct pevent_record *record)
 }
 
 static void
-process_sched_wakeup(struct pevent *pevent, struct pevent_record *record, int type)
+process_sched_wakeup(struct tep_handle *pevent, struct tep_record *record, int type)
 {
 	unsigned long long val;
 	const char *comm;
@@ -503,23 +489,23 @@ process_sched_wakeup(struct pevent *pevent, struct pevent_record *record, int ty
 
 	if (type == sched_wakeup_type) {
 		comm = (char *)(record->data + sched_wakeup_comm_field->offset);
-		ret = pevent_read_number_field(sched_wakeup_pid_field, record->data, &val);
+		ret = tep_read_number_field(sched_wakeup_pid_field, record->data, &val);
 		if (ret < 0)
 			die("no pid field in sched_wakeup?");
 	} else {
 		comm = (char *)(record->data + sched_wakeup_new_comm_field->offset);
-		ret = pevent_read_number_field(sched_wakeup_new_pid_field, record->data, &val);
+		ret = tep_read_number_field(sched_wakeup_new_pid_field, record->data, &val);
 		if (ret < 0)
 			die("no pid field in sched_wakeup_new?");
 	}
 
 	pid = val;
 
-	pevent_register_comm(pevent, comm, pid);
+	tep_register_comm(pevent, comm, pid);
 }
 
 static void
-process_sched_switch(struct pevent *pevent, struct pevent_record *record)
+process_sched_switch(struct tep_handle *pevent, struct tep_record *record)
 {
 	unsigned long long val;
 	const char *comm;
@@ -527,22 +513,22 @@ process_sched_switch(struct pevent *pevent, struct pevent_record *record)
 	int ret;
 
 	comm = (char *)(record->data + sched_switch_prev_field->offset);
-	ret = pevent_read_number_field(sched_switch_prev_pid_field, record->data, &val);
+	ret = tep_read_number_field(sched_switch_prev_pid_field, record->data, &val);
 	if (ret < 0)
 		die("no prev_pid field in sched_switch?");
 	pid = val;
-	pevent_register_comm(pevent, comm, pid);
+	tep_register_comm(pevent, comm, pid);
 
 	comm = (char *)(record->data + sched_switch_next_field->offset);
-	ret = pevent_read_number_field(sched_switch_next_pid_field, record->data, &val);
+	ret = tep_read_number_field(sched_switch_next_pid_field, record->data, &val);
 	if (ret < 0)
 		die("no next_pid field in sched_switch?");
 	pid = val;
-	pevent_register_comm(pevent, comm, pid);
+	tep_register_comm(pevent, comm, pid);
 }
 
 static void
-process_event(struct pevent *pevent, struct pevent_record *record, int type)
+process_event(struct tep_handle *pevent, struct tep_record *record, int type)
 {
 	struct event_format *event;
 	const char *event_name;
@@ -555,10 +541,10 @@ process_event(struct pevent *pevent, struct pevent_record *record, int type)
 		reset_pending_stack();
 	}
 		
-	event = pevent_data_event_from_type(pevent, type);
+	event = tep_data_event_from_type(pevent, type);
 	event_name = event->name;
 
-	ret = pevent_read_number_field(common_pid_field, record->data, &val);
+	ret = tep_read_number_field(common_pid_field, record->data, &val);
 	if (ret < 0)
 		die("no pid field for function?");
 
@@ -577,12 +563,12 @@ process_event(struct pevent *pevent, struct pevent_record *record, int type)
 }
 
 static void
-process_record(struct pevent *pevent, struct pevent_record *record)
+process_record(struct tep_handle *pevent, struct tep_record *record)
 {
 	unsigned long long val;
 	int type;
 
-	pevent_read_number_field(common_type_field, record->data, &val);
+	tep_read_number_field(common_type_field, record->data, &val);
 	type = val;
 
 	if (type == function_type)
@@ -607,12 +593,12 @@ process_record(struct pevent *pevent, struct pevent_record *record)
 }
 
 static struct event_format *
-update_event(struct pevent *pevent,
+update_event(struct tep_handle *pevent,
 	     const char *sys, const char *name, int *id)
 {
 	struct event_format *event;
 
-	event = pevent_find_event_by_name(pevent, sys, name);
+	event = tep_find_event_by_name(pevent, sys, name);
 	if (!event)
 		return NULL;
 
@@ -621,7 +607,7 @@ update_event(struct pevent *pevent,
 	return event;
 }
 
-static void update_sched_wakeup(struct pevent *pevent)
+static void update_sched_wakeup(struct tep_handle *pevent)
 {
 	struct event_format *event;
 
@@ -629,11 +615,11 @@ static void update_sched_wakeup(struct pevent *pevent)
 	if (!event)
 		return;
 
-	sched_wakeup_comm_field = pevent_find_field(event, "comm");
-	sched_wakeup_pid_field = pevent_find_field(event, "pid");
+	sched_wakeup_comm_field = tep_find_field(event, "comm");
+	sched_wakeup_pid_field = tep_find_field(event, "pid");
 }
 
-static void update_sched_wakeup_new(struct pevent *pevent)
+static void update_sched_wakeup_new(struct tep_handle *pevent)
 {
 	struct event_format *event;
 
@@ -641,11 +627,11 @@ static void update_sched_wakeup_new(struct pevent *pevent)
 	if (!event)
 		return;
 
-	sched_wakeup_new_comm_field = pevent_find_field(event, "comm");
-	sched_wakeup_new_pid_field = pevent_find_field(event, "pid");
+	sched_wakeup_new_comm_field = tep_find_field(event, "comm");
+	sched_wakeup_new_pid_field = tep_find_field(event, "pid");
 }
 
-static void update_sched_switch(struct pevent *pevent)
+static void update_sched_switch(struct tep_handle *pevent)
 {
 	struct event_format *event;
 
@@ -653,13 +639,13 @@ static void update_sched_switch(struct pevent *pevent)
 	if (!event)
 		return;
 
-	sched_switch_prev_field = pevent_find_field(event, "prev_comm");
-	sched_switch_next_field = pevent_find_field(event, "next_comm");
-	sched_switch_prev_pid_field = pevent_find_field(event, "prev_pid");
-	sched_switch_next_pid_field = pevent_find_field(event, "next_pid");
+	sched_switch_prev_field = tep_find_field(event, "prev_comm");
+	sched_switch_next_field = tep_find_field(event, "next_comm");
+	sched_switch_prev_pid_field = tep_find_field(event, "prev_pid");
+	sched_switch_next_pid_field = tep_find_field(event, "next_pid");
 }
 
-static void update_function(struct pevent *pevent)
+static void update_function(struct tep_handle *pevent)
 {
 	struct event_format *event;
 
@@ -667,11 +653,11 @@ static void update_function(struct pevent *pevent)
 	if (!event)
 		return;
 
-	function_ip_field = pevent_find_field(event, "ip");
-	function_parent_ip_field = pevent_find_field(event, "parent_ip");
+	function_ip_field = tep_find_field(event, "ip");
+	function_parent_ip_field = tep_find_field(event, "parent_ip");
 }
 
-static void update_function_graph_entry(struct pevent *pevent)
+static void update_function_graph_entry(struct tep_handle *pevent)
 {
 	struct event_format *event;
 
@@ -679,11 +665,11 @@ static void update_function_graph_entry(struct pevent *pevent)
 	if (!event)
 		return;
 
-	function_graph_entry_func_field = pevent_find_field(event, "func");
-	function_graph_entry_depth_field = pevent_find_field(event, "depth");
+	function_graph_entry_func_field = tep_find_field(event, "func");
+	function_graph_entry_depth_field = tep_find_field(event, "depth");
 }
 
-static void update_function_graph_exit(struct pevent *pevent)
+static void update_function_graph_exit(struct tep_handle *pevent)
 {
 	struct event_format *event;
 
@@ -691,14 +677,14 @@ static void update_function_graph_exit(struct pevent *pevent)
 	if (!event)
 		return;
 
-	function_graph_exit_func_field = pevent_find_field(event, "func");
-	function_graph_exit_depth_field = pevent_find_field(event, "depth");
-	function_graph_exit_calltime_field = pevent_find_field(event, "calltime");
-	function_graph_exit_rettime_field = pevent_find_field(event, "rettime");
-	function_graph_exit_overrun_field = pevent_find_field(event, "overrun");
+	function_graph_exit_func_field = tep_find_field(event, "func");
+	function_graph_exit_depth_field = tep_find_field(event, "depth");
+	function_graph_exit_calltime_field = tep_find_field(event, "calltime");
+	function_graph_exit_rettime_field = tep_find_field(event, "rettime");
+	function_graph_exit_overrun_field = tep_find_field(event, "overrun");
 }
 
-static void update_kernel_stack(struct pevent *pevent)
+static void update_kernel_stack(struct tep_handle *pevent)
 {
 	struct event_format *event;
 
@@ -706,7 +692,7 @@ static void update_kernel_stack(struct pevent *pevent)
 	if (!event)
 		return;
 
-	kernel_stack_caller_field = pevent_find_field(event, "caller");
+	kernel_stack_caller_field = tep_find_field(event, "caller");
 }
 
 enum field { NEXT_PTR, SIB_PTR };
@@ -862,7 +848,7 @@ print_single_parent(struct chain *chain, int indent)
 }
 
 static void
-dump_chain(struct pevent *pevent, struct chain *chain, int indent)
+dump_chain(struct tep_handle *pevent, struct chain *chain, int indent)
 {
 	if (!chain->parents)
 		return;
@@ -871,7 +857,7 @@ dump_chain(struct pevent *pevent, struct chain *chain, int indent)
 	dump_chain(pevent, chain->parents, indent);
 }
 
-static void print_parents(struct pevent *pevent, struct chain *chain, int indent)
+static void print_parents(struct tep_handle *pevent, struct chain *chain, int indent)
 {
 	struct chain *parent = chain->parents;
 	int x;
@@ -915,7 +901,7 @@ static void print_parents(struct pevent *pevent, struct chain *chain, int indent
 	}
 }
 
-static void print_chains(struct pevent *pevent)
+static void print_chains(struct tep_handle *pevent)
 {
 	struct chain *chain = chains;
 	int pid;
@@ -933,7 +919,7 @@ static void print_chains(struct pevent *pevent)
 			printf("  %%%3.2f  (%d) %s %30s #%d\n",
 			       get_percent(total_counts, chain->count),
 			       pid,
-			       pevent_data_comm_from_pid(pevent, pid),
+			       tep_data_comm_from_pid(pevent, pid),
 			       chain->func,
 			       chain->count);
 		printf(START);
@@ -947,9 +933,9 @@ static void print_chains(struct pevent *pevent)
 
 static void do_trace_hist(struct tracecmd_input *handle)
 {
-	struct pevent *pevent = tracecmd_get_pevent(handle);
+	struct tep_handle *pevent = tracecmd_get_pevent(handle);
 	struct event_format *event;
-	struct pevent_record *record;
+	struct tep_record *record;
 	int cpus;
 	int cpu;
 	int ret;
@@ -965,16 +951,16 @@ static void do_trace_hist(struct tracecmd_input *handle)
 	if (!record)
 		die("No records found in file");
 
-	ret = pevent_data_type(pevent, record);
-	event = pevent_data_event_from_type(pevent, ret);
+	ret = tep_data_type(pevent, record);
+	event = tep_data_event_from_type(pevent, ret);
 
 	long_size = tracecmd_long_size(handle);
 
-	common_type_field = pevent_find_common_field(event, "common_type");
+	common_type_field = tep_find_common_field(event, "common_type");
 	if (!common_type_field)
 		die("Can't find a 'type' field?");
 
-	common_pid_field = pevent_find_common_field(event, "common_pid");
+	common_pid_field = tep_find_common_field(event, "common_pid");
 	if (!common_pid_field)
 		die("Can't find a 'pid' field?");
 
@@ -988,7 +974,7 @@ static void do_trace_hist(struct tracecmd_input *handle)
 
 	for (cpu = 0; cpu < cpus; cpu++) {
 		for (;;) {
-			struct pevent_record *record;
+			struct tep_record *record;
 
 			record = tracecmd_read_data(handle, cpu);
 			if (!record)

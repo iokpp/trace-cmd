@@ -1,21 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #define _LARGEFILE64_SOURCE
 #include <dirent.h>
@@ -37,6 +23,7 @@
 
 #include "trace-local.h"
 #include "trace-hash.h"
+#include "trace-hash-local.h"
 #include "kbuffer.h"
 #include "list.h"
 
@@ -63,7 +50,7 @@ struct handle_list {
 	const char		*file;
 	int			cpus;
 	int			done;
-	struct pevent_record	*record;
+	struct tep_record	*record;
 	struct filter		*event_filters;
 	struct filter		*event_filter_out;
 };
@@ -147,8 +134,8 @@ static int test_read_at_copy = 100;
 static int test_read_at_index;
 static void show_test(struct tracecmd_input *handle)
 {
-	struct pevent *pevent;
-	struct pevent_record *record;
+	struct tep_handle *pevent;
+	struct tep_record *record;
 	struct trace_seq s;
 	int cpu;
 
@@ -162,7 +149,7 @@ static void show_test(struct tracecmd_input *handle)
 	record = tracecmd_read_at(handle, test_read_at_offset, &cpu);
 	printf("\nHERE'S THE COPY RECORD\n");
 	trace_seq_init(&s);
-	pevent_print_event(pevent, &s, cpu, record->data, record->size, record->ts);
+	tep_print_event(pevent, &s, cpu, record->data, record->size, record->ts);
 	trace_seq_do_printf(&s);
 	trace_seq_destroy(&s);
 	printf("\n");
@@ -170,7 +157,7 @@ static void show_test(struct tracecmd_input *handle)
 	free_record(record);
 }
 
-static void test_save(struct pevent_record *record, int cpu)
+static void test_save(struct tep_record *record, int cpu)
 {
 	if (test_read_at_index++ == test_read_at_copy) {
 		test_read_at_offset = record->offset;
@@ -189,8 +176,8 @@ static int test_at_timestamp_cpu = -1;
 static int test_at_timestamp_index;
 static void show_test(struct tracecmd_input *handle)
 {
-	struct pevent *pevent;
-	struct pevent_record *record;
+	struct tep_handle *pevent;
+	struct tep_record *record;
 	struct trace_seq s;
 	int cpu = test_at_timestamp_cpu;
 
@@ -209,7 +196,7 @@ static void show_test(struct tracecmd_input *handle)
 	       (void *)(record->offset & ~(page_size - 1)),
 	       (void *)record->offset);
 	trace_seq_init(&s);
-	pevent_print_event(pevent, &s, cpu, record->data, record->size, record->ts);
+	tep_print_event(pevent, &s, cpu, record->data, record->size, record->ts);
 	trace_seq_do_printf(&s);
 	trace_seq_destroy(&s);
 	printf("\n");
@@ -217,7 +204,7 @@ static void show_test(struct tracecmd_input *handle)
 	free_record(record);
 }
 
-static void test_save(struct pevent_record *record, int cpu)
+static void test_save(struct tep_record *record, int cpu)
 {
 	if (test_at_timestamp_index++ == test_at_timestamp_copy) {
 		test_at_timestamp_ts = record->ts;
@@ -234,8 +221,8 @@ static void test_save(struct pevent_record *record, int cpu)
 #define DO_TEST
 static void show_test(struct tracecmd_input *handle)
 {
-	struct pevent *pevent;
-	struct pevent_record *record;
+	struct tep_handle *pevent;
+	struct tep_record *record;
 	struct trace_seq s;
 	int cpu = 0;
 
@@ -250,7 +237,7 @@ static void show_test(struct tracecmd_input *handle)
 	printf("\nHERE'S THE FIRST RECORD with offset %p\n",
 	       (void *)record->offset);
 	trace_seq_init(&s);
-	pevent_print_event(pevent, &s, cpu, record->data, record->size, record->ts);
+	tep_print_event(pevent, &s, cpu, record->data, record->size, record->ts);
 	trace_seq_do_printf(&s);
 	trace_seq_destroy(&s);
 	printf("\n");
@@ -266,14 +253,14 @@ static void show_test(struct tracecmd_input *handle)
 	printf("\nHERE'S THE LAST RECORD with offset %p\n",
 	       (void *)record->offset);
 	trace_seq_init(&s);
-	pevent_print_event(pevent, &s, cpu, record->data, record->size, record->ts);
+	tep_print_event(pevent, &s, cpu, record->data, record->size, record->ts);
 	trace_seq_do_printf(&s);
 	trace_seq_destroy(&s);
 	printf("\n");
 
 	free_record(record);
 }
-static void test_save(struct pevent_record *record, int cpu)
+static void test_save(struct tep_record *record, int cpu)
 {
 }
 #endif /* TEST_FIRST_LAST */
@@ -282,7 +269,7 @@ static void test_save(struct pevent_record *record, int cpu)
 static void show_test(struct tracecmd_input *handle)
 {
 }
-static void test_save(struct pevent_record *record, int cpu)
+static void test_save(struct tep_record *record, int cpu)
 {
 }
 #endif
@@ -433,7 +420,7 @@ static char *append_pid_filter(char *curr_filter, char *pid)
 
 static void convert_comm_filter(struct tracecmd_input *handle)
 {
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 	struct pid_list *list;
 	struct cmdline *cmdline;
 	char pidstr[100];
@@ -445,15 +432,15 @@ static void convert_comm_filter(struct tracecmd_input *handle)
 
 	/* Seach for comm names and get their pids */
 	for (list = comm_list; list; list = list->next) {
-		cmdline = pevent_data_pid_from_comm(pevent, list->pid, NULL);
+		cmdline = tep_data_pid_from_comm(pevent, list->pid, NULL);
 		if (!cmdline) {
 			warning("comm: %s not in cmdline list", list->pid);
 			continue;
 		}
 		do {
-			sprintf(pidstr, "%d", pevent_cmdline_pid(pevent, cmdline));
+			sprintf(pidstr, "%d", tep_cmdline_pid(pevent, cmdline));
 			add_pid_filter(pidstr);
-			cmdline = pevent_data_pid_from_comm(pevent, list->pid,
+			cmdline = tep_data_pid_from_comm(pevent, list->pid,
 							    cmdline);
 		} while (cmdline);
 	}
@@ -500,7 +487,7 @@ static void process_filters(struct handle_list *handles)
 	struct filter **filter_out_next = &handles->event_filter_out;
 	struct filter *event_filter;
 	struct filter_str *filter;
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 	char errstr[200];
 	int ret;
 
@@ -516,14 +503,14 @@ static void process_filters(struct handle_list *handles)
 		if (!event_filter)
 			die("Failed to allocate for event filter");
 		event_filter->next = NULL;
-		event_filter->filter = pevent_filter_alloc(pevent);
+		event_filter->filter = tep_filter_alloc(pevent);
 		if (!event_filter->filter)
 			die("malloc");
 
-		ret = pevent_filter_add_filter_str(event_filter->filter,
+		ret = tep_filter_add_filter_str(event_filter->filter,
 						   filter->filter);
 		if (ret < 0) {
-			pevent_strerror(pevent, ret, errstr, sizeof(errstr));
+			tep_strerror(pevent, ret, errstr, sizeof(errstr));
 			die("Error filtering: %s\n%s",
 			    filter->filter, errstr);
 		}
@@ -544,7 +531,7 @@ static void process_filters(struct handle_list *handles)
 static void init_wakeup(struct tracecmd_input *handle)
 {
 	struct event_format *event;
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 
 	if (!show_wakeup)
 		return;
@@ -553,38 +540,38 @@ static void init_wakeup(struct tracecmd_input *handle)
 
 	trace_hash_init(&wakeup_hash, WAKEUP_HASH_SIZE);
 
-	event = pevent_find_event_by_name(pevent, "sched", "sched_wakeup");
+	event = tep_find_event_by_name(pevent, "sched", "sched_wakeup");
 	if (!event)
 		goto fail;
 	wakeup_id = event->id;
-	wakeup_task = pevent_find_field(event, "pid");
+	wakeup_task = tep_find_field(event, "pid");
 	if (!wakeup_task)
 		goto fail;
-	wakeup_success = pevent_find_field(event, "success");
+	wakeup_success = tep_find_field(event, "success");
 
-	event = pevent_find_event_by_name(pevent, "sched", "sched_switch");
+	event = tep_find_event_by_name(pevent, "sched", "sched_switch");
 	if (!event)
 		goto fail;
 	sched_id = event->id;
-	sched_task = pevent_find_field(event, "next_pid");
+	sched_task = tep_find_field(event, "next_pid");
 	if (!sched_task)
 		goto fail;
 
-	sched_prio = pevent_find_field(event, "next_prio");
+	sched_prio = tep_find_field(event, "next_prio");
 	if (!sched_prio)
 		goto fail;
 
 
 	wakeup_new_id = -1;
 
-	event = pevent_find_event_by_name(pevent, "sched", "sched_wakeup_new");
+	event = tep_find_event_by_name(pevent, "sched", "sched_wakeup_new");
 	if (!event)
 		goto skip;
 	wakeup_new_id = event->id;
-	wakeup_new_task = pevent_find_field(event, "pid");
+	wakeup_new_task = tep_find_field(event, "pid");
 	if (!wakeup_new_task)
 		goto fail;
-	wakeup_new_success = pevent_find_field(event, "success");
+	wakeup_new_success = tep_find_field(event, "success");
 
  skip:
 	return;
@@ -674,7 +661,7 @@ static void add_sched(unsigned int val, unsigned long long end, int rt)
 	free(info);
 }
 
-static void process_wakeup(struct pevent *pevent, struct pevent_record *record)
+static void process_wakeup(struct tep_handle *pevent, struct tep_record *record)
 {
 	unsigned long long val;
 	int id;
@@ -682,30 +669,30 @@ static void process_wakeup(struct pevent *pevent, struct pevent_record *record)
 	if (!show_wakeup)
 		return;
 
-	id = pevent_data_type(pevent, record);
+	id = tep_data_type(pevent, record);
 	if (id == wakeup_id) {
-		if (pevent_read_number_field(wakeup_success, record->data, &val) == 0) {
+		if (tep_read_number_field(wakeup_success, record->data, &val) == 0) {
 			if (!val)
 				return;
 		}
-		if (pevent_read_number_field(wakeup_task, record->data, &val))
+		if (tep_read_number_field(wakeup_task, record->data, &val))
 			return;
 		add_wakeup(val, record->ts);
 	} else if (id == wakeup_new_id) {
-		if (pevent_read_number_field(wakeup_new_success, record->data, &val) == 0) {
+		if (tep_read_number_field(wakeup_new_success, record->data, &val) == 0) {
 			if (!val)
 				return;
 		}
-		if (pevent_read_number_field(wakeup_new_task, record->data, &val))
+		if (tep_read_number_field(wakeup_new_task, record->data, &val))
 			return;
 		add_wakeup(val, record->ts);
 	} else if (id == sched_id) {
 		int rt = 1;
-		if (pevent_read_number_field(sched_prio, record->data, &val))
+		if (tep_read_number_field(sched_prio, record->data, &val))
 			return;
 		if (val > 99)
 			rt = 0;
-		if (pevent_read_number_field(sched_task, record->data, &val))
+		if (tep_read_number_field(sched_task, record->data, &val))
 			return;
 		add_sched(val, record->ts, rt);
 	}
@@ -762,10 +749,10 @@ static void finish_wakeup(void)
 	trace_hash_free(&wakeup_hash);
 }
 
-void trace_show_data(struct tracecmd_input *handle, struct pevent_record *record)
+void trace_show_data(struct tracecmd_input *handle, struct tep_record *record)
 {
 	tracecmd_show_data_func func = tracecmd_get_show_data_func(handle);
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 	struct trace_seq s;
 	int cpu = record->cpu;
 	bool use_trace_clock;
@@ -806,12 +793,12 @@ void trace_show_data(struct tracecmd_input *handle, struct pevent_record *record
 		struct event_format *event;
 		unsigned long long rec_ts = record->ts;
 
-		event = pevent_find_event_by_record(pevent, record);
-		pevent_print_event_task(pevent, &s, event, record);
-		pevent_print_event_time(pevent, &s, event, record,
+		event = tep_find_event_by_record(pevent, record);
+		tep_print_event_task(pevent, &s, event, record);
+		tep_print_event_time(pevent, &s, event, record,
 					use_trace_clock);
 		buf[0] = 0;
-		if (use_trace_clock && !(pevent->flags & PEVENT_NSEC_OUTPUT))
+		if (use_trace_clock && !(pevent->flags & TEP_NSEC_OUTPUT))
 			rec_ts = (rec_ts + 500) / 1000;
 		if (last_ts) {
 			diff_ts = rec_ts - last_ts;
@@ -820,9 +807,9 @@ void trace_show_data(struct tracecmd_input *handle, struct pevent_record *record
 		}
 		last_ts = rec_ts;
 		trace_seq_printf(&s, " %-8s", buf);
-		pevent_print_event_data(pevent, &s, event, record);
+		tep_print_event_data(pevent, &s, event, record);
 	} else
-		pevent_print_event(pevent, &s, record, use_trace_clock);
+		tep_print_event(pevent, &s, record, use_trace_clock);
 	if (s.len && *(s.buffer + s.len - 1) == '\n')
 		s.len--;
 	if (debug) {
@@ -888,15 +875,15 @@ static void read_rest(void)
 }
 
 static int
-test_filters(struct pevent *pevent, struct filter *event_filters,
-	     struct pevent_record *record, int neg)
+test_filters(struct tep_handle *pevent, struct filter *event_filters,
+	     struct tep_record *record, int neg)
 {
 	int found = 0;
 	int ret = FILTER_NONE;
 	int flags;
 
 	if (no_irqs || no_softirqs) {
-		flags = pevent_data_flags(pevent, record);
+		flags = tep_data_flags(pevent, record);
 		if (no_irqs && (flags & TRACE_FLAG_HARDIRQ))
 			return FILTER_MISS;
 		if (no_softirqs && (flags & TRACE_FLAG_SOFTIRQ))
@@ -904,7 +891,7 @@ test_filters(struct pevent *pevent, struct filter *event_filters,
 	}
 
 	while (event_filters) {
-		ret = pevent_filter_match(event_filters->filter, record);
+		ret = tep_filter_match(event_filters->filter, record);
 		switch (ret) {
 			case FILTER_NONE:
 			case FILTER_MATCH: 
@@ -933,7 +920,7 @@ struct stack_info {
 };
 
 static int
-test_stacktrace(struct handle_list *handles, struct pevent_record *record,
+test_stacktrace(struct handle_list *handles, struct tep_record *record,
 		int last_printed)
 {
 	static struct stack_info *infos;
@@ -942,7 +929,7 @@ test_stacktrace(struct handle_list *handles, struct pevent_record *record,
 	struct handle_list *h;
 	struct tracecmd_input *handle;
 	struct event_format *event;
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 	static int init;
 	int ret;
 	int id;
@@ -963,8 +950,8 @@ test_stacktrace(struct handle_list *handles, struct pevent_record *record,
 			memset(info->cpus, 0, sizeof(*info->cpus));
 
 			pevent = tracecmd_get_pevent(h->handle);
-			event = pevent_find_event_by_name(pevent, "ftrace",
-							  "kernel_stack");
+			event = tep_find_event_by_name(pevent, "ftrace",
+						       "kernel_stack");
 			if (event)
 				info->stacktrace_id = event->id;
 			else
@@ -989,7 +976,7 @@ test_stacktrace(struct handle_list *handles, struct pevent_record *record,
 
 	cpu_info = &info->cpus[record->cpu];
 
-	id = pevent_data_type(pevent, record);
+	id = tep_data_type(pevent, record);
 
 	/*
 	 * Print the stack trace if the previous event was printed.
@@ -1007,10 +994,10 @@ test_stacktrace(struct handle_list *handles, struct pevent_record *record,
 	return 0;
 }
 
-static struct pevent_record *get_next_record(struct handle_list *handles)
+static struct tep_record *get_next_record(struct handle_list *handles)
 {
-	struct pevent_record *record;
-	struct pevent *pevent;
+	struct tep_record *record;
+	struct tep_handle *pevent;
 	int found = 0;
 	int cpu;
 	int ret;
@@ -1026,7 +1013,7 @@ static struct pevent_record *get_next_record(struct handle_list *handles)
 	do {
 		if (filter_cpus) {
 			long long last_stamp = -1;
-			struct pevent_record *precord;
+			struct tep_record *precord;
 			int first_record = 1;
 			int next_cpu = -1;
 			int i;
@@ -1112,7 +1099,7 @@ static void free_filters(struct filter *event_filter)
 		filter = event_filter;
 		event_filter = filter->next;
 
-		pevent_filter_free(filter->filter);
+		tep_filter_free(filter->filter);
 		free(filter);
 	}
 }
@@ -1128,10 +1115,10 @@ static void read_data_info(struct list_head *handle_list, enum output_type otype
 {
 	struct handle_list *handles;
 	struct handle_list *last_handle;
-	struct pevent_record *record;
-	struct pevent_record *last_record;
+	struct tep_record *record;
+	struct tep_record *last_record;
 	struct event_format *event;
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 	int cpus;
 	int ret;
 
@@ -1174,7 +1161,7 @@ static void read_data_info(struct list_head *handle_list, enum output_type otype
 
 		/* Find the kernel_stacktrace if available */
 		pevent = tracecmd_get_pevent(handles->handle);
-		event = pevent_find_event_by_name(pevent, "ftrace", "kernel_stack");
+		event = tep_find_event_by_name(pevent, "ftrace", "kernel_stack");
 		if (event)
 			stacktrace_id = event->id;
 
@@ -1309,7 +1296,7 @@ static void read_file_fd(int fd, char *dst, int len)
 	} while (r > 0);
 }
 
-static void add_functions(struct pevent *pevent, const char *file)
+static void add_functions(struct tep_handle *pevent, const char *file)
 {
 	struct stat st;
 	char *buf;
@@ -1346,7 +1333,7 @@ static void process_plugin_option(char *option)
 	trace_util_add_option(name, val);
 }
 
-static void set_event_flags(struct pevent *pevent, struct event_str *list,
+static void set_event_flags(struct tep_handle *pevent, struct event_str *list,
 			    unsigned int flag)
 {
 	struct event_format **events;
@@ -1359,7 +1346,7 @@ static void set_event_flags(struct pevent *pevent, struct event_str *list,
 	if (!list)
 		return;
 
-	events = pevent_list_events(pevent, 0);
+	events = tep_list_events(pevent, 0);
 
 	for (str = list; str; str = str->next) {
 		char *match;
@@ -1417,7 +1404,7 @@ enum {
 void trace_report (int argc, char **argv)
 {
 	struct tracecmd_input *handle;
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 	struct event_str *raw_events = NULL;
 	struct event_str *nohandler_events = NULL;
 	struct event_str **raw_ptr = &raw_events;
@@ -1700,7 +1687,7 @@ void trace_report (int argc, char **argv)
 		pevent = tracecmd_get_pevent(handle);
 
 		if (nanosec)
-			pevent->flags |= PEVENT_NSEC_OUTPUT;
+			pevent->flags |= TEP_NSEC_OUTPUT;
 
 		if (raw)
 			pevent->print_raw = 1;
@@ -1713,8 +1700,8 @@ void trace_report (int argc, char **argv)
 
 		if (show_endian) {
 			printf("file is %s endian and host is %s endian\n",
-			       pevent_is_file_bigendian(pevent) ? "big" : "little",
-			       pevent_is_host_bigendian(pevent) ? "big" : "little");
+			       tep_is_file_bigendian(pevent) ? "big" : "little",
+			       tep_is_host_bigendian(pevent) ? "big" : "little");
 			return;
 		}
 
@@ -1740,11 +1727,11 @@ void trace_report (int argc, char **argv)
 		}
 
 		if (show_funcs) {
-			pevent_print_funcs(pevent);
+			tep_print_funcs(pevent);
 			return;
 		}
 		if (show_printk) {
-			pevent_print_printk(pevent);
+			tep_print_printk(pevent);
 			return;
 		}
 
@@ -1753,7 +1740,7 @@ void trace_report (int argc, char **argv)
 			struct event_format *event;
 			int i;
 
-			events = pevent_list_events(pevent, EVENT_SORT_SYSTEM);
+			events = tep_list_events(pevent, EVENT_SORT_SYSTEM);
 			for (i = 0; events[i]; i++) {
 				event = events[i];
 				if (event->system)
@@ -1768,7 +1755,7 @@ void trace_report (int argc, char **argv)
 	}
 
 	if (latency_format)
-		pevent_set_latency_format(pevent, latency_format);
+		tep_set_latency_format(pevent, latency_format);
 
 	otype = OUTPUT_NORMAL;
 

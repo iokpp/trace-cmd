@@ -1,21 +1,6 @@
+// SPDX-License-Identifier: LGPL-2.1
 /*
  * Copyright (C) 2009 Johannes Berg <johannes@sipsolutions.net>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation;
- * version 2.1 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,7 +13,7 @@
 static void print_string(struct trace_seq *s, struct event_format *event,
 			 const char *name, const void *data)
 {
-	struct format_field *f = pevent_find_field(event, name);
+	struct format_field *f = tep_find_field(event, name);
 	int offset;
 	int length;
 
@@ -42,7 +27,7 @@ static void print_string(struct trace_seq *s, struct event_format *event,
 
 	if (!strncmp(f->type, "__data_loc", 10)) {
 		unsigned long long v;
-		if (pevent_read_number_field(f, data, &v)) {
+		if (tep_read_number_field(f, data, &v)) {
 			trace_seq_printf(s, "invalid_data_loc");
 			return;
 		}
@@ -62,7 +47,7 @@ static void _print_enum(struct trace_seq *s, struct event_format *event,
 			const char *name, const void *data,
 			const struct value_name *names, int n_names)
 {
-	struct format_field *f = pevent_find_field(event, name);
+	struct format_field *f = tep_find_field(event, name);
 	unsigned long long val;
 	int i;
 
@@ -71,7 +56,7 @@ static void _print_enum(struct trace_seq *s, struct event_format *event,
 		return;
 	}
 
-	if (pevent_read_number_field(f, data, &val)) {
+	if (tep_read_number_field(f, data, &val)) {
 		trace_seq_puts(s, "field-invalid");
 		return;
 	}
@@ -95,7 +80,7 @@ static void _print_flag(struct trace_seq *s, struct event_format *event,
 			const char *name, const void *data,
 			const struct value_name *names, int n_names)
 {
-	struct format_field *f = pevent_find_field(event, name);
+	struct format_field *f = tep_find_field(event, name);
 	unsigned long long val;
 	int i, j, found, first = 1;
 
@@ -104,7 +89,7 @@ static void _print_flag(struct trace_seq *s, struct event_format *event,
 		return;
 	}
 
-	if (pevent_read_number_field(f, data, &val)) {
+	if (tep_read_number_field(f, data, &val)) {
 		trace_seq_puts(s, "field-invalid");
 		return;
 	}
@@ -134,11 +119,11 @@ static void _print_flag(struct trace_seq *s, struct event_format *event,
 	_print_flag(s, ev, name, data, __n, sizeof(__n)/sizeof(__n[0]));	\
 	})
 
-#define SF(fn)	pevent_print_num_field(s, fn ":%d", event, fn, record, 0)
-#define SFX(fn)	pevent_print_num_field(s, fn ":%#x", event, fn, record, 0)
+#define SF(fn)	tep_print_num_field(s, fn ":%d", event, fn, record, 0)
+#define SFX(fn)	tep_print_num_field(s, fn ":%#x", event, fn, record, 0)
 #define SP()	trace_seq_putc(s, ' ')
 
-static int drv_bss_info_changed(struct trace_seq *s, struct pevent_record *record,
+static int drv_bss_info_changed(struct trace_seq *s, struct tep_record *record,
 				struct event_format *event, void *context)
 {
 	void *data = record->data;
@@ -146,7 +131,7 @@ static int drv_bss_info_changed(struct trace_seq *s, struct pevent_record *recor
 	print_string(s, event, "wiphy_name", data);
 	trace_seq_printf(s, " vif:");
 	print_string(s, event, "vif_name", data);
-	pevent_print_num_field(s, "(%d)", event, "vif_type", record, 1);
+	tep_print_num_field(s, "(%d)", event, "vif_type", record, 1);
 
 	trace_seq_printf(s, "\n%*s", INDENT, "");
 	SF("assoc"); SP();
@@ -166,7 +151,7 @@ static int drv_bss_info_changed(struct trace_seq *s, struct pevent_record *recor
 	return 0;
 }
 
-static int drv_config(struct trace_seq *s, struct pevent_record *record,
+static int drv_config(struct trace_seq *s, struct tep_record *record,
 		      struct event_format *event, void *context)
 {
 	void *data = record->data;
@@ -179,7 +164,7 @@ static int drv_config(struct trace_seq *s, struct pevent_record *record,
 		{ 2, "IDLE" },
 		{ 3, "QOS"},
 	);
-	pevent_print_num_field(s, " chan:%d/", event, "center_freq", record, 1);
+	tep_print_num_field(s, " chan:%d/", event, "center_freq", record, 1);
 	print_enum(s, event, "channel_type", data,
 		{ 0, "noht" },
 		{ 1, "ht20" },
@@ -191,12 +176,12 @@ static int drv_config(struct trace_seq *s, struct pevent_record *record,
 	return 0;
 }
 
-int PEVENT_PLUGIN_LOADER(struct pevent *pevent)
+int TEP_PLUGIN_LOADER(struct tep_handle *pevent)
 {
-	pevent_register_event_handler(pevent, -1, "mac80211", "drv_bss_info_changed",
-				      drv_bss_info_changed, NULL);
-	pevent_register_event_handler(pevent, -1, "mac80211", "drv_config",
-				      drv_config, NULL);
+	tep_register_event_handler(pevent, -1, "mac80211", "drv_bss_info_changed",
+				   drv_bss_info_changed, NULL);
+	tep_register_event_handler(pevent, -1, "mac80211", "drv_config",
+				   drv_config, NULL);
 
 	return 0;
 }

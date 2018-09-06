@@ -1,22 +1,6 @@
+// SPDX-License-Identifier: LGPL-2.1
 /*
  * Copyright (C) 2009 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation;
- * version 2.1 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this program; if not,  see <http://www.gnu.org/licenses>
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -207,7 +191,7 @@ static int blk_log_split(struct trace_seq *s, struct blk_data *data)
 {
 	const char *cmd;
 
-	cmd = pevent_data_comm_from_pid(data->event->pevent, data->pid);
+	cmd = tep_data_comm_from_pid(data->event->pevent, data->pid);
 
 	return trace_seq_printf(s, "%llu / %llu [%s]\n", data->sector,
 				get_pdu_int(data->pdu_data), cmd);
@@ -217,7 +201,7 @@ static int blk_log_plug(struct trace_seq *s, struct blk_data *data)
 {
 	const char *cmd;
 
-	cmd = pevent_data_comm_from_pid(data->event->pevent, data->pid);
+	cmd = tep_data_comm_from_pid(data->event->pevent, data->pid);
 
 	return trace_seq_printf(s, "[%s]\n", cmd);
 }
@@ -226,7 +210,7 @@ static int blk_log_unplug(struct trace_seq *s, struct blk_data *data)
 {
 	const char *cmd;
 
-	cmd = pevent_data_comm_from_pid(data->event->pevent, data->pid);
+	cmd = tep_data_comm_from_pid(data->event->pevent, data->pid);
 
 	return trace_seq_printf(s, "[%s] %llu\n", cmd, get_pdu_int(data->pdu_data));
 }
@@ -252,7 +236,7 @@ static int blk_log_generic(struct trace_seq *s, struct blk_data *data)
 {
 	const char *cmd;
 
-	cmd = pevent_data_comm_from_pid(data->event->pevent, data->pid);
+	cmd = tep_data_comm_from_pid(data->event->pevent, data->pid);
 
 	if (data->action & BLK_TC_ACT(BLK_TC_PC)) {
 		int ret;
@@ -294,7 +278,7 @@ static const struct {
 	[__BLK_TA_REMAP]	= {{  "A", "remap" },	   blk_log_remap },
 };
 
-static int blktrace_handler(struct trace_seq *s, struct pevent_record *record,
+static int blktrace_handler(struct trace_seq *s, struct tep_record *record,
 			    struct event_format *event, void *context)
 {
 	struct format_field *field;
@@ -304,56 +288,56 @@ static int blktrace_handler(struct trace_seq *s, struct pevent_record *record,
 	unsigned short what;
 	int long_act = 0;
 
-	field = pevent_find_field(event, "action");
+	field = tep_find_field(event, "action");
 	if (!field)
 		return 1;
-	if (pevent_read_number_field(field, data, &val))
+	if (tep_read_number_field(field, data, &val))
 		return 1;
 	blk_data.action = val;
 
-	field = pevent_find_field(event, "bytes");
+	field = tep_find_field(event, "bytes");
 	if (!field)
 		return 1;
-	if (pevent_read_number_field(field, data, &val))
+	if (tep_read_number_field(field, data, &val))
 		return 1;
 	blk_data.bytes = val;
 
-	field = pevent_find_field(event, "device");
+	field = tep_find_field(event, "device");
 	if (!field)
 		return 1;
-	if (pevent_read_number_field(field, data, &val))
+	if (tep_read_number_field(field, data, &val))
 		return 1;
 	blk_data.device = val;
 
-	field = pevent_find_field(event, "pdu_len");
+	field = tep_find_field(event, "pdu_len");
 	if (!field)
 		return 1;
-	if (pevent_read_number_field(field, data, &val))
+	if (tep_read_number_field(field, data, &val))
 		return 1;
 	blk_data.pdu_len = val;
 
-	field = pevent_find_field(event, "data");
+	field = tep_find_field(event, "data");
 	if (!field)
 		return 1;
 	blk_data.pdu_data = data + field->offset;
 
-	field = pevent_find_field(event, "sector");
+	field = tep_find_field(event, "sector");
 	if (!field)
 		return 1;
-	if (pevent_read_number_field(field, data, &blk_data.sector))
+	if (tep_read_number_field(field, data, &blk_data.sector))
 		return 1;
 
-	field = pevent_find_field(event, "pid");
+	field = tep_find_field(event, "pid");
 	if (!field)
 		return 1;
-	if (pevent_read_number_field(field, data, &val))
+	if (tep_read_number_field(field, data, &val))
 		return 1;
 	blk_data.pid = val;
 
-	field = pevent_find_field(event, "error");
+	field = tep_find_field(event, "error");
 	if (!field)
 		return 1;
-	if (pevent_read_number_field(field, data, &val))
+	if (tep_read_number_field(field, data, &val))
 		return 1;
 	blk_data.error = val;
 
@@ -379,9 +363,9 @@ static int blktrace_handler(struct trace_seq *s, struct pevent_record *record,
 	return 0;
 }
 
-int PEVENT_PLUGIN_LOADER(struct pevent *pevent)
+int TEP_PLUGIN_LOADER(struct tep_handle *pevent)
 {
-	pevent_register_event_handler(pevent, -1, "ftrace", "blktrace",
-				      blktrace_handler, NULL);
+	tep_register_event_handler(pevent, -1, "ftrace", "blktrace",
+				   blktrace_handler, NULL);
 	return 0;
 }

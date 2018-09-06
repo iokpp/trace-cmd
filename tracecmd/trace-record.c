@@ -1,19 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2008, 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
  *
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
@@ -3357,12 +3344,12 @@ static void add_func(struct func_list **list, const char *mod, const char *func)
 }
 
 static unsigned long long
-find_ts_in_page(struct pevent *pevent, void *page, int size)
+find_ts_in_page(struct tep_handle *pevent, void *page, int size)
 {
 	struct event_format *event;
 	struct format_field *field;
-	struct pevent_record *last_record = NULL;
-	struct pevent_record *record;
+	struct tep_record *last_record = NULL;
+	struct tep_record *record;
 	unsigned long long ts = 0;
 	int id;
 
@@ -3375,11 +3362,11 @@ find_ts_in_page(struct pevent *pevent, void *page, int size)
 		if (!record)
 			break;
 		free_record(last_record);
-		id = pevent_data_type(pevent, record);
-		event = pevent_data_event_from_type(pevent, id);
+		id = tep_data_type(pevent, record);
+		event = tep_data_event_from_type(pevent, id);
 		if (event) {
 			/* Make sure this is our event */
-			field = pevent_find_field(event, "buf");
+			field = tep_find_field(event, "buf");
 			/* the trace_marker adds a '\n' */
 			if (field && strcmp(STAMP"\n", record->data + field->offset) == 0)
 				ts = record->ts;
@@ -3391,7 +3378,7 @@ find_ts_in_page(struct pevent *pevent, void *page, int size)
 	return ts;
 }
 
-static unsigned long long find_time_stamp(struct pevent *pevent)
+static unsigned long long find_time_stamp(struct tep_handle *pevent)
 {
 	struct dirent *dent;
 	unsigned long long ts = 0;
@@ -3498,7 +3485,7 @@ static char *get_date_to_ts(void)
 	unsigned long long min_stamp;
 	unsigned long long min_ts;
 	unsigned long long ts;
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 	struct timeval start;
 	struct timeval end;
 	char *date2ts = NULL;
@@ -3510,7 +3497,7 @@ static char *get_date_to_ts(void)
 	int i;
 
 	/* Set up a pevent to read the raw format */
-	pevent = pevent_alloc();
+	pevent = tep_alloc();
 	if (!pevent) {
 		warning("failed to alloc pevent, --date ignored");
 		return NULL;
@@ -3519,7 +3506,7 @@ static char *get_date_to_ts(void)
 	buf = read_file("events/header_page", &size);
 	if (!buf)
 		goto out_pevent;
-	ret = pevent_parse_header_page(pevent, buf, size, sizeof(unsigned long));
+	ret = tep_parse_header_page(pevent, buf, size, sizeof(unsigned long));
 	free(buf);
 	if (ret < 0) {
 		warning("Can't parse header page, --date ignored");
@@ -3530,7 +3517,7 @@ static char *get_date_to_ts(void)
 	buf = read_file("events/ftrace/print/format", &size);
 	if (!buf)
 		goto out_pevent;
-	ret = pevent_parse_event(pevent, buf, size, "ftrace");
+	ret = tep_parse_event(pevent, buf, size, "ftrace");
 	free(buf);
 	if (ret < 0) {
 		warning("Can't parse print event, --date ignored");
@@ -3591,7 +3578,7 @@ static char *get_date_to_ts(void)
 	snprintf(date2ts, 19, "0x%llx", min_stamp - min_ts / 1000);
 
  out_pevent:
-	pevent_free(pevent);
+	tep_free(pevent);
 
 	return date2ts;
 }

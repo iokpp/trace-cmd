@@ -1,21 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #ifndef _TRACE_GRAPH_H
 #define _TRACE_GRAPH_H
@@ -29,8 +15,8 @@ struct graph_info;
 
 typedef void (graph_select_cb)(struct graph_info *ginfo, guint64 time);
 typedef void (graph_filter_cb)(struct graph_info *ginfo,
-			       struct filter_task *task_filter,
-			       struct filter_task *hide_tasks);
+			       struct tracecmd_filter_id *task_filter,
+			       struct tracecmd_filter_id *hide_tasks);
 
 /* Used for quereing what plots are defined */
 enum graph_plot_type {
@@ -111,12 +97,12 @@ struct plot_callbacks {
 		      unsigned long long time);
 	int (*plot_event)(struct graph_info *ginfo,
 			  struct graph_plot *plot,
-			  struct pevent_record *record);
+			  struct tep_record *record);
 	void (*end)(struct graph_info *, struct graph_plot *);
 	int (*display_last_event)(struct graph_info *ginfo, struct graph_plot *plot,
 				  struct trace_seq *s, unsigned long long time);
-	struct pevent_record *(*find_record)(struct graph_info *, struct graph_plot *,
-				      unsigned long long time);
+	struct tep_record *(*find_record)(struct graph_info *, struct graph_plot *,
+					  unsigned long long time);
 	int (*display_info)(struct graph_info *, struct graph_plot *,
 			    struct trace_seq *s,
 			    unsigned long long time);
@@ -159,7 +145,7 @@ struct task_list;
 
 struct graph_info {
 	struct tracecmd_input	*handle;
-	struct pevent		*pevent;
+	struct tep_handle	*pevent;
 	gint			cpus;
 
 	gint			plots;
@@ -248,10 +234,10 @@ struct graph_info {
 
 	gboolean		read_comms;	/* Read all comms on first load */
 
-	struct filter_task	*task_filter;
+	struct tracecmd_filter_id *task_filter;
 	gint			filter_task_selected;
 
-	struct filter_task	*hide_tasks;
+	struct tracecmd_filter_id *hide_tasks;
 
 	/* Box info for plot data info window */
 	gint			plot_data_x;
@@ -296,9 +282,9 @@ static inline GtkWidget *trace_graph_get_window(struct graph_info *ginfo)
 
 void trace_graph_refresh(struct graph_info *ginfo);
 
-struct filter_task_item *
+struct tracecmd_filter_id_item *
 trace_graph_filter_task_find_pid(struct graph_info *ginfo, gint pid);
-struct filter_task_item *
+struct tracecmd_filter_id_item *
 trace_graph_hide_task_find_pid(struct graph_info *ginfo, gint pid);
 void trace_graph_filter_toggle(struct graph_info *ginfo);
 void trace_graph_filter_add_remove_task(struct graph_info *info,
@@ -311,15 +297,15 @@ int trace_graph_load_handle(struct graph_info *ginfo,
 			    struct tracecmd_input *handle);
 
 int trace_graph_check_sched_switch(struct graph_info *ginfo,
-				   struct pevent_record *record,
+				   struct tep_record *record,
 				   gint *pid, const char **comm);
 int trace_graph_check_sched_wakeup(struct graph_info *ginfo,
-				   struct pevent_record *record,
+				   struct tep_record *record,
 				   gint *pid);
 enum graph_irq_type trace_graph_check_irq(struct graph_info *ginfo,
-		      struct pevent_record *record);
+		      struct tep_record *record);
 gboolean trace_graph_filter_on_task(struct graph_info *ginfo, gint pid);
-gboolean trace_graph_filter_on_event(struct graph_info *ginfo, struct pevent_record *record);
+gboolean trace_graph_filter_on_event(struct graph_info *ginfo, struct tep_record *record);
 
 void trace_graph_copy_filter(struct graph_info *ginfo,
 			     gboolean all_events,
@@ -331,8 +317,8 @@ int trace_graph_load_filters(struct graph_info *ginfo,
 int trace_graph_save_filters(struct graph_info *ginfo,
 			     struct tracecmd_xml_handle *handle);
 void trace_graph_update_filters(struct graph_info *ginfo,
-				struct filter_task *task_filter,
-				struct filter_task *hide_tasks);
+				struct tracecmd_filter_id *task_filter,
+				struct tracecmd_filter_id *hide_tasks);
 void trace_graph_refresh_filters(struct graph_info *ginfo);
 
 /* plots */
@@ -382,12 +368,12 @@ void trace_graph_plot_start(struct graph_info *ginfo,
 
 int trace_graph_plot_event(struct graph_info *ginfo,
 			   struct graph_plot *plot,
-			   struct pevent_record *record);
+			   struct tep_record *record);
 
 void trace_graph_plot_end(struct graph_info *ginfo,
 			  struct graph_plot *plot);
 
-struct pevent_record *
+struct tep_record *
 trace_graph_plot_find_record(struct graph_info *ginfo,
 			     struct graph_plot *plot,
 			     unsigned long long time);

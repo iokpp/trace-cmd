@@ -1,21 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -54,7 +40,7 @@
 #define DEFAULT_MAX_BUF_SIZE 1000000
 
 struct trace_capture {
-	struct pevent		*pevent;
+	struct tep_handle	*pevent;
 	struct shark_info	*info;
 	GtkWidget		*main_dialog;
 	GtkWidget		*command_entry;
@@ -399,7 +385,7 @@ static int add_trace_cmd_words(struct trace_capture *cap, char **args)
 
 		if (events) {
 			for (i = 0; events[i] >= 0; i++) {
-				event = pevent_find_event(cap->pevent, events[i]);
+				event = tep_find_event(cap->pevent, events[i]);
 				if (!event)
 					continue;
 				args[words++] = strdup("-e");
@@ -823,7 +809,7 @@ static int load_events(struct trace_capture *cap,
 	struct shark_info *info = cap->info;
 	struct tracecmd_xml_system_node *event_node;
 	struct event_format *event;
-	struct pevent *pevent = cap->pevent;
+	struct tep_handle *pevent = cap->pevent;
 	const char *name;
 	int *events = NULL;
 	int event_len = 0;
@@ -855,7 +841,7 @@ static int load_events(struct trace_capture *cap,
 			continue;
 		event_name = tracecmd_xml_node_value(handle, event_node);
 
-		event = pevent_find_event_by_name(pevent, system, event_name);
+		event = tep_find_event_by_name(pevent, system, event_name);
 
 		if (!event)
 			continue;
@@ -1010,7 +996,7 @@ static void import_settings_clicked(GtkWidget *widget, gpointer data)
 static void save_events(struct trace_capture *cap,
 			struct tracecmd_xml_handle *handle)
 {
-	struct pevent *pevent = cap->pevent;
+	struct tep_handle *pevent = cap->pevent;
 	struct event_format *event;
 	char **systems = cap->info->cap_systems;
 	int *events = cap->info->cap_events;
@@ -1026,7 +1012,7 @@ static void save_events(struct trace_capture *cap,
 
 	tracecmd_xml_start_sub_system(handle, "Events");
 	for (i = 0; events[i] > 0; i++) {
-		event = pevent_find_event(pevent, events[i]);
+		event = tep_find_event(pevent, events[i]);
 		if (event) {
 			tracecmd_xml_start_sub_system(handle, "Event");
 			tracecmd_xml_write_element(handle, "System", "%s", event->system);
@@ -1239,7 +1225,7 @@ static void insert_text(GtkEditable *buffer,
  */
 static void tracing_dialog(struct shark_info *info, const char *tracing)
 {
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 	GtkWidget *dialog;
 	GtkWidget *button;
 	GtkWidget *combo;
@@ -1575,7 +1561,7 @@ static void tracing_dialog(struct shark_info *info, const char *tracing)
 	gtk_widget_destroy(dialog);
 
 	if (pevent)
-		pevent_free(pevent);
+		tep_free(pevent);
 
 	if (plugins)
 		tracecmd_free_list(plugins);

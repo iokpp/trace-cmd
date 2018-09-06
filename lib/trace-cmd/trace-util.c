@@ -1,21 +1,7 @@
+// SPDX-License-Identifier: LGPL-2.1
 /*
  * Copyright (C) 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation;
- * version 2.1 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,7 +30,7 @@ int tracecmd_disable_plugins;
 
 static struct registered_plugin_options {
 	struct registered_plugin_options	*next;
-	struct pevent_plugin_option			*options;
+	struct tep_plugin_option			*options;
 } *registered_options;
 
 static struct trace_plugin_options {
@@ -77,7 +63,7 @@ struct plugin_list {
 char **trace_util_list_plugin_options(void)
 {
 	struct registered_plugin_options *reg;
-	struct pevent_plugin_option *op;
+	struct tep_plugin_option *op;
 	char **list = NULL;
 	char *name;
 	int count = 0;
@@ -115,7 +101,7 @@ void trace_util_free_plugin_options_list(char **list)
 }
 
 static int process_option(const char *plugin, const char *option, const char *val);
-static int update_option(const char *file, struct pevent_plugin_option *option);
+static int update_option(const char *file, struct tep_plugin_option *option);
 
 /**
  * trace_util_add_options - Add a set of options by a plugin
@@ -124,7 +110,7 @@ static int update_option(const char *file, struct pevent_plugin_option *option);
  *
  * Sets the options with the values that have been added by user.
  */
-int trace_util_add_options(const char *name, struct pevent_plugin_option *options)
+int trace_util_add_options(const char *name, struct tep_plugin_option *options)
 {
 	struct registered_plugin_options *reg;
 	int ret;
@@ -149,7 +135,7 @@ int trace_util_add_options(const char *name, struct pevent_plugin_option *option
  * trace_util_remove_options - remove plugin options that were registered
  * @options: Options to removed that were registered with trace_util_add_options
  */
-void trace_util_remove_options(struct pevent_plugin_option *options)
+void trace_util_remove_options(struct tep_plugin_option *options)
 {
 	struct registered_plugin_options **last;
 	struct registered_plugin_options *reg;
@@ -201,11 +187,11 @@ static void parse_option_name(char **option, char **plugin)
 	}
 }
 
-static struct pevent_plugin_option *
+static struct tep_plugin_option *
 find_registered_option(const char *plugin, const char *option)
 {
 	struct registered_plugin_options *reg;
-	struct pevent_plugin_option *op;
+	struct tep_plugin_option *op;
 	const char *op_plugin;
 
 	for (reg = registered_options; reg; reg = reg->next) {
@@ -227,10 +213,10 @@ find_registered_option(const char *plugin, const char *option)
 	return NULL;
 }
 
-static struct pevent_plugin_option *
+static struct tep_plugin_option *
 find_registered_option_parse(const char *name)
 {
-	struct pevent_plugin_option *option;
+	struct tep_plugin_option *option;
 	char *option_str;
 	char *plugin;
 
@@ -257,7 +243,7 @@ find_registered_option_parse(const char *name)
  */
 const char *trace_util_plugin_option_value(const char *name)
 {
-	struct pevent_plugin_option *option;
+	struct tep_plugin_option *option;
 
 	option = find_registered_option_parse(name);
 	if (!option)
@@ -359,7 +345,7 @@ static void print_op_data(struct trace_seq *s, const char *name,
 void trace_util_print_plugin_options(struct trace_seq *s)
 {
 	struct registered_plugin_options *reg;
-	struct pevent_plugin_option *op;
+	struct tep_plugin_option *op;
 
 	for (reg = registered_options; reg; reg = reg->next) {
 		if (reg != registered_options)
@@ -377,7 +363,7 @@ void trace_util_print_plugin_options(struct trace_seq *s)
 	}
 }
 
-void tracecmd_parse_cmdlines(struct pevent *pevent,
+void tracecmd_parse_cmdlines(struct tep_handle *pevent,
 			     char *file, int size __maybe_unused)
 {
 	char *comm;
@@ -388,13 +374,13 @@ void tracecmd_parse_cmdlines(struct pevent *pevent,
 	line = strtok_r(file, "\n", &next);
 	while (line) {
 		sscanf(line, "%d %ms", &pid, &comm);
-		pevent_register_comm(pevent, comm, pid);
+		tep_register_comm(pevent, comm, pid);
 		free(comm);
 		line = strtok_r(NULL, "\n", &next);
 	}
 }
 
-static void extract_trace_clock(struct pevent *pevent, char *line)
+static void extract_trace_clock(struct tep_handle *pevent, char *line)
 {
 	char *data;
 	char *clock;
@@ -402,11 +388,11 @@ static void extract_trace_clock(struct pevent *pevent, char *line)
 
 	data = strtok_r(line, "[]", &next);
 	sscanf(data, "%ms", &clock);
-	pevent_register_trace_clock(pevent, clock);
+	tep_register_trace_clock(pevent, clock);
 	free(clock);
 }
 
-void tracecmd_parse_trace_clock(struct pevent *pevent,
+void tracecmd_parse_trace_clock(struct tep_handle *pevent,
 				char *file, int size __maybe_unused)
 {
 	char *line;
@@ -421,7 +407,7 @@ void tracecmd_parse_trace_clock(struct pevent *pevent,
 	}
 }
 
-void tracecmd_parse_proc_kallsyms(struct pevent *pevent,
+void tracecmd_parse_proc_kallsyms(struct tep_handle *pevent,
 			 char *file, unsigned int size __maybe_unused)
 {
 	unsigned long long addr;
@@ -458,7 +444,7 @@ void tracecmd_parse_proc_kallsyms(struct pevent *pevent,
 		 *  - x86-64 that reports per-cpu variable offsets as absolute
 		 */
 		if (func[0] != '$' && ch != 'A' && ch != 'a')
-			pevent_register_function(pevent, func, addr, mod);
+			tep_register_function(pevent, func, addr, mod);
 		free(func);
 		free(mod);
 
@@ -466,7 +452,7 @@ void tracecmd_parse_proc_kallsyms(struct pevent *pevent,
 	}
 }
 
-void tracecmd_parse_ftrace_printk(struct pevent *pevent,
+void tracecmd_parse_ftrace_printk(struct tep_handle *pevent,
 			 char *file, unsigned int size __maybe_unused)
 {
 	unsigned long long addr;
@@ -487,7 +473,7 @@ void tracecmd_parse_ftrace_printk(struct pevent *pevent,
 		/* fmt still has a space, skip it */
 		printk = strdup(fmt+1);
 		line = strtok_r(NULL, "\n", &next);
-		pevent_register_print_string(pevent, printk, addr);
+		tep_register_print_string(pevent, printk, addr);
 		free(printk);
 	}
 }
@@ -500,7 +486,7 @@ static void lower_case(char *str)
 		*str = tolower(*str);
 }
 
-static int update_option_value(struct pevent_plugin_option *op, const char *val)
+static int update_option_value(struct tep_plugin_option *op, const char *val)
 {
 	char *op_val;
 	int ret = 1;
@@ -544,7 +530,7 @@ static int update_option_value(struct pevent_plugin_option *op, const char *val)
 
 static int process_option(const char *plugin, const char *option, const char *val)
 {
-	struct pevent_plugin_option *op;
+	struct tep_plugin_option *op;
 
 	op = find_registered_option(plugin, option);
 	if (!op)
@@ -553,7 +539,7 @@ static int process_option(const char *plugin, const char *option, const char *va
 	return update_option_value(op, val);
 }
 
-static int update_option(const char *file, struct pevent_plugin_option *option)
+static int update_option(const char *file, struct tep_plugin_option *option)
 {
 	struct trace_plugin_options *op;
 	char *plugin;
@@ -603,13 +589,13 @@ static int update_option(const char *file, struct pevent_plugin_option *option)
 	return 0;
 }
 
-static int load_plugin(struct pevent *pevent, const char *path,
+static int load_plugin(struct tep_handle *pevent, const char *path,
 		       const char *file, void *data)
 {
 	struct plugin_list **plugin_list = data;
-	pevent_plugin_load_func func;
+	tep_plugin_load_func func;
 	struct plugin_list *list;
-	struct pevent_plugin_option *options;
+	struct tep_plugin_option *options;
 	const char *alias;
 	char *plugin;
 	void *handle;
@@ -626,11 +612,11 @@ static int load_plugin(struct pevent *pevent, const char *path,
 		goto out_free;
 	}
 
-	alias = dlsym(handle, PEVENT_PLUGIN_ALIAS_NAME);
+	alias = dlsym(handle, TEP_PLUGIN_ALIAS_NAME);
 	if (!alias)
 		alias = file;
 
-	options = dlsym(handle, PEVENT_PLUGIN_OPTIONS_NAME);
+	options = dlsym(handle, TEP_PLUGIN_OPTIONS_NAME);
 	if (options) {
 		while (options->name) {
 			ret = update_option(alias, options);
@@ -640,10 +626,10 @@ static int load_plugin(struct pevent *pevent, const char *path,
 		}
 	}
 
-	func = dlsym(handle, PEVENT_PLUGIN_LOADER_NAME);
+	func = dlsym(handle, TEP_PLUGIN_LOADER_NAME);
 	if (!func) {
 		warning("cound not find func '%s' in plugin '%s'\n%s\n",
-			PEVENT_PLUGIN_LOADER_NAME, plugin, dlerror());
+			TEP_PLUGIN_LOADER_NAME, plugin, dlerror());
 		goto out_free;
 	}
 
@@ -1050,7 +1036,7 @@ static int read_file(const char *file, char **buffer)
 	return len;
 }
 
-static int load_events(struct pevent *pevent, const char *system,
+static int load_events(struct tep_handle *pevent, const char *system,
 			const char *sys_dir)
 {
 	struct dirent *dent;
@@ -1091,7 +1077,7 @@ static int load_events(struct pevent *pevent, const char *system,
 		if (len < 0)
 			goto free_format;
 
-		ret = pevent_parse_event(pevent, buf, len, system);
+		ret = tep_parse_event(pevent, buf, len, system);
 		free(buf);
  free_format:
 		free(format);
@@ -1105,7 +1091,7 @@ static int load_events(struct pevent *pevent, const char *system,
 	return failure;
 }
 
-static int read_header(struct pevent *pevent, const char *events_dir)
+static int read_header(struct tep_handle *pevent, const char *events_dir)
 {
 	struct stat st;
 	char *header;
@@ -1123,7 +1109,7 @@ static int read_header(struct pevent *pevent, const char *events_dir)
 	if (len < 0)
 		goto out;
 
-	pevent_parse_header_page(pevent, buf, len, sizeof(long));
+	tep_parse_header_page(pevent, buf, len, sizeof(long));
 
 	free(buf);
 
@@ -1140,16 +1126,16 @@ static int read_header(struct pevent *pevent, const char *events_dir)
  * Returns a pevent structure that contains the pevents local to
  * the system.
  */
-struct pevent *tracecmd_local_events(const char *tracing_dir)
+struct tep_handle *tracecmd_local_events(const char *tracing_dir)
 {
-	struct pevent *pevent = NULL;
+	struct tep_handle *pevent = NULL;
 
-	pevent = pevent_alloc();
+	pevent = tep_alloc();
 	if (!pevent)
 		return NULL;
 
 	if (tracecmd_fill_local_events(tracing_dir, pevent)) {
-		pevent_free(pevent);
+		tep_free(pevent);
 		pevent = NULL;
 	}
 
@@ -1163,7 +1149,7 @@ struct pevent *tracecmd_local_events(const char *tracing_dir)
  *
  * Returns whether the operation succeeded
  */
-int tracecmd_fill_local_events(const char *tracing_dir, struct pevent *pevent)
+int tracecmd_fill_local_events(const char *tracing_dir, struct tep_handle *pevent)
 {
 	struct dirent *dent;
 	char *events_dir;
@@ -1293,9 +1279,9 @@ char **tracecmd_local_plugins(const char *tracing_dir)
 }
 
 static void
-trace_util_load_plugins_dir(struct pevent *pevent, const char *suffix,
+trace_util_load_plugins_dir(struct tep_handle *pevent, const char *suffix,
 			    const char *path,
-			    int (*load_plugin)(struct pevent *pevent,
+			    int (*load_plugin)(struct tep_handle *pevent,
 					       const char *path,
 					       const char *name,
 						void *data),
@@ -1342,7 +1328,7 @@ struct add_plugin_data {
 	char **files;
 };
 
-static int add_plugin_file(struct pevent *pevent, const char *path,
+static int add_plugin_file(struct tep_handle *pevent, const char *path,
 			   const char *name, void *data)
 {
 	struct add_plugin_data *pdata = data;
@@ -1376,8 +1362,8 @@ static int add_plugin_file(struct pevent *pevent, const char *path,
 	return -ENOMEM;
 }
 
-int trace_util_load_plugins(struct pevent *pevent, const char *suffix,
-			    int (*load_plugin)(struct pevent *pevent,
+int trace_util_load_plugins(struct tep_handle *pevent, const char *suffix,
+			    int (*load_plugin)(struct tep_handle *pevent,
 					       const char *path,
 					       const char *name,
 					       void *data),
@@ -1467,14 +1453,14 @@ void trace_util_free_plugin_files(char **files)
 }
 
 struct plugin_option_read {
-	struct pevent_plugin_option	*options;
+	struct tep_plugin_option	*options;
 };
 
 static int append_option(struct plugin_option_read *options,
-			 struct pevent_plugin_option *option,
+			 struct tep_plugin_option *option,
 			 const char *alias, void *handle)
 {
-	struct pevent_plugin_option *op;
+	struct tep_plugin_option *op;
 
 	while (option->name) {
 		op = malloc(sizeof(*op));
@@ -1490,11 +1476,11 @@ static int append_option(struct plugin_option_read *options,
 	return 0;
 }
 
-static int read_options(struct pevent *pevent, const char *path,
+static int read_options(struct tep_handle *pevent, const char *path,
 			 const char *file, void *data)
 {
 	struct plugin_option_read *options = data;
-	struct pevent_plugin_option *option;
+	struct tep_plugin_option *option;
 	const char *alias;
 	int unload = 0;
 	char *plugin;
@@ -1512,11 +1498,11 @@ static int read_options(struct pevent *pevent, const char *path,
 		goto out_free;
 	}
 
-	alias = dlsym(handle, PEVENT_PLUGIN_ALIAS_NAME);
+	alias = dlsym(handle, TEP_PLUGIN_ALIAS_NAME);
 	if (!alias)
 		alias = file;
 
-	option = dlsym(handle, PEVENT_PLUGIN_OPTIONS_NAME);
+	option = dlsym(handle, TEP_PLUGIN_OPTIONS_NAME);
 	if (!option) {
 		unload = 1;
 		goto out_unload;
@@ -1532,7 +1518,7 @@ static int read_options(struct pevent *pevent, const char *path,
 	return 0;
 }
 
-struct pevent_plugin_option *trace_util_read_plugin_options(void)
+struct tep_plugin_option *trace_util_read_plugin_options(void)
 {
 	struct plugin_option_read option = {
 		.options = NULL,
@@ -1545,9 +1531,9 @@ struct pevent_plugin_option *trace_util_read_plugin_options(void)
 	return option.options;
 }
 
-void trace_util_free_options(struct pevent_plugin_option *options)
+void trace_util_free_options(struct tep_plugin_option *options)
 {
-	struct pevent_plugin_option *op;
+	struct tep_plugin_option *op;
 	void *last_handle = NULL;
 
 	while (options) {
@@ -1562,7 +1548,7 @@ void trace_util_free_options(struct pevent_plugin_option *options)
 	}
 }
 
-struct plugin_list *tracecmd_load_plugins(struct pevent *pevent)
+struct plugin_list *tracecmd_load_plugins(struct tep_handle *pevent)
 {
 	struct plugin_list *list = NULL;
 
@@ -1572,15 +1558,15 @@ struct plugin_list *tracecmd_load_plugins(struct pevent *pevent)
 }
 
 void
-tracecmd_unload_plugins(struct plugin_list *plugin_list, struct pevent *pevent)
+tracecmd_unload_plugins(struct plugin_list *plugin_list, struct tep_handle *pevent)
 {
-	pevent_plugin_unload_func func;
+	tep_plugin_unload_func func;
 	struct plugin_list *list;
 
 	while (plugin_list) {
 		list = plugin_list;
 		plugin_list = list->next;
-		func = dlsym(list->handle, PEVENT_PLUGIN_UNLOADER_NAME);
+		func = dlsym(list->handle, TEP_PLUGIN_UNLOADER_NAME);
 		if (func)
 			func(pevent);
 		dlclose(list->handle);

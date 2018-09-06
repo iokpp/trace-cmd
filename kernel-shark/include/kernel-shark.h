@@ -1,21 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #ifndef _KERNEL_SHARK_H
 #define _KERNEL_SHARK_H
@@ -48,8 +34,8 @@ struct shark_info {
 	gboolean			graph_follows;
 	gboolean			sync_task_filters;
 	gboolean			sync_event_filters;
-	struct filter_task		*list_task_filter;
-	struct filter_task		*list_hide_tasks;
+	struct tracecmd_filter_id	*list_task_filter;
+	struct tracecmd_filter_id	*list_hide_tasks;
 
 	/* Save capture state. */
 	gboolean			cap_all_events;

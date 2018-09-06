@@ -1,21 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,6 +19,7 @@
 #include "trace-graph.h"
 #include "trace-filter-hash.h"
 #include "trace-filter.h"
+#include "trace-hash-local.h"
 #include "trace-gui.h"
 
 #include "event-utils.h"
@@ -225,31 +212,31 @@ static void init_event_cache(struct graph_info *ginfo)
 	ginfo->read_comms = TRUE;
 }
 
-struct filter_task_item *
+struct tracecmd_filter_id_item *
 trace_graph_filter_task_find_pid(struct graph_info *ginfo, gint pid)
 {
-	return filter_task_find_pid(ginfo->task_filter, pid);
+	return tracecmd_filter_id_find(ginfo->task_filter, pid);
 }
 
-struct filter_task_item *
+struct tracecmd_filter_id_item *
 trace_graph_hide_task_find_pid(struct graph_info *ginfo, gint pid)
 {
-	return filter_task_find_pid(ginfo->hide_tasks, pid);
+	return tracecmd_filter_id_find(ginfo->hide_tasks, pid);
 }
 
 static void graph_filter_task_add_pid(struct graph_info *ginfo, gint pid)
 {
-	filter_task_add_pid(ginfo->task_filter, pid);
+	tracecmd_filter_id_add(ginfo->task_filter, pid);
 
 	ginfo->filter_available = 1;
 }
 
 static void graph_filter_task_remove_pid(struct graph_info *ginfo, gint pid)
 {
-	filter_task_remove_pid(ginfo->task_filter, pid);
+	tracecmd_filter_id_remove(ginfo->task_filter, pid);
 
-	if (!filter_task_count(ginfo->task_filter) &&
-	    !filter_task_count(ginfo->hide_tasks)) {
+	if (!tracecmd_filter_task_count(ginfo->task_filter) &&
+	    !tracecmd_filter_task_count(ginfo->hide_tasks)) {
 		ginfo->filter_available = 0;
 		ginfo->filter_enabled = 0;
 	}
@@ -257,17 +244,17 @@ static void graph_filter_task_remove_pid(struct graph_info *ginfo, gint pid)
 
 static void graph_hide_task_add_pid(struct graph_info *ginfo, gint pid)
 {
-	filter_task_add_pid(ginfo->hide_tasks, pid);
+	tracecmd_filter_id_add(ginfo->hide_tasks, pid);
 
 	ginfo->filter_available = 1;
 }
 
 static void graph_hide_task_remove_pid(struct graph_info *ginfo, gint pid)
 {
-	filter_task_remove_pid(ginfo->hide_tasks, pid);
+	tracecmd_filter_id_remove(ginfo->hide_tasks, pid);
 
-	if (!filter_task_count(ginfo->task_filter) &&
-	    !filter_task_count(ginfo->hide_tasks)) {
+	if (!tracecmd_filter_task_count(ginfo->task_filter) &&
+	    !tracecmd_filter_task_count(ginfo->hide_tasks)) {
 		ginfo->filter_available = 0;
 		ginfo->filter_enabled = 0;
 	}
@@ -275,14 +262,14 @@ static void graph_hide_task_remove_pid(struct graph_info *ginfo, gint pid)
 
 static void graph_filter_task_clear(struct graph_info *ginfo)
 {
-	filter_task_clear(ginfo->task_filter);
-	filter_task_clear(ginfo->hide_tasks);
+	tracecmd_filter_id_clear(ginfo->task_filter);
+	tracecmd_filter_id_clear(ginfo->hide_tasks);
 
 	ginfo->filter_available = 0;
 	ginfo->filter_enabled = 0;
 }
 
-gboolean trace_graph_filter_on_event(struct graph_info *ginfo, struct pevent_record *record)
+gboolean trace_graph_filter_on_event(struct graph_info *ginfo, struct tep_record *record)
 {
 	int ret;
 
@@ -292,7 +279,7 @@ gboolean trace_graph_filter_on_event(struct graph_info *ginfo, struct pevent_rec
 	if (ginfo->all_events)
 		return FALSE;
 
-	ret = pevent_filter_match(ginfo->event_filter, record);
+	ret = tep_filter_match(ginfo->event_filter, record);
 	return ret == FILTER_MATCH ? FALSE : TRUE;
 }
 
@@ -303,9 +290,9 @@ gboolean trace_graph_filter_on_task(struct graph_info *ginfo, gint pid)
 	filter = FALSE;
 
 	if (ginfo->filter_enabled &&
-	    ((filter_task_count(ginfo->task_filter) &&
+	    ((tracecmd_filter_task_count(ginfo->task_filter) &&
 	      !trace_graph_filter_task_find_pid(ginfo, pid)) ||
-	     (filter_task_count(ginfo->hide_tasks) &&
+	     (tracecmd_filter_task_count(ginfo->hide_tasks) &&
 	      trace_graph_hide_task_find_pid(ginfo, pid))))
 		filter = TRUE;
 
@@ -495,12 +482,12 @@ void trace_graph_filter_add_remove_task(struct graph_info *ginfo,
 					gint pid)
 {
 	gint filter_enabled = ginfo->filter_enabled;
-	struct filter_task_item *task;
+	struct tracecmd_filter_id_item *task;
 
 	task = trace_graph_filter_task_find_pid(ginfo, pid);
 
 	if (task)
-		graph_filter_task_remove_pid(ginfo, task->pid);
+		graph_filter_task_remove_pid(ginfo, task->id);
 	else
 		graph_filter_task_add_pid(ginfo, pid);
 
@@ -516,12 +503,12 @@ void trace_graph_filter_hide_show_task(struct graph_info *ginfo,
 				       gint pid)
 {
 	gint filter_enabled = ginfo->filter_enabled;
-	struct filter_task_item *task;
+	struct tracecmd_filter_id_item *task;
 
 	task = trace_graph_hide_task_find_pid(ginfo, pid);
 
 	if (task)
-		graph_hide_task_remove_pid(ginfo, task->pid);
+		graph_hide_task_remove_pid(ginfo, task->id);
 	else
 		graph_hide_task_add_pid(ginfo, pid);
 
@@ -564,18 +551,18 @@ void trace_graph_clear_tasks(struct graph_info *ginfo)
 }
 
 void trace_graph_update_filters(struct graph_info *ginfo,
-				struct filter_task *task_filter,
-				struct filter_task *hide_tasks)
+				struct tracecmd_filter_id *task_filter,
+				struct tracecmd_filter_id *hide_tasks)
 {
 	/* Make sure the filter passed in is not the filter we use */
 	if (task_filter != ginfo->task_filter) {
-		filter_task_hash_free(ginfo->task_filter);
-		ginfo->task_filter = filter_task_hash_copy(task_filter);
+		tracecmd_filter_id_hash_free(ginfo->task_filter);
+		ginfo->task_filter = tracecmd_filter_id_hash_copy(task_filter);
 	}
 
 	if (hide_tasks != ginfo->hide_tasks) {
-		filter_task_hash_free(ginfo->hide_tasks);
-		ginfo->hide_tasks = filter_task_hash_copy(hide_tasks);
+		tracecmd_filter_id_hash_free(ginfo->hide_tasks);
+		ginfo->hide_tasks = tracecmd_filter_id_hash_copy(hide_tasks);
 	}
 
 	if (ginfo->callbacks && ginfo->callbacks->filter)
@@ -585,8 +572,8 @@ void trace_graph_update_filters(struct graph_info *ginfo,
 	if (ginfo->filter_enabled)
 		redraw_graph(ginfo);
 
-	if (filter_task_count(ginfo->task_filter) ||
-	    filter_task_count(ginfo->hide_tasks))
+	if (tracecmd_filter_task_count(ginfo->task_filter) ||
+	    tracecmd_filter_task_count(ginfo->hide_tasks))
 		ginfo->filter_available = 1;
 	else {
 		ginfo->filter_enabled = 0;
@@ -666,7 +653,7 @@ do_pop_up(GtkWidget *widget, GdkEventButton *event, gpointer data)
 	static GtkWidget *menu_filter_clear_tasks;
 	static GtkWidget *menu_plot_task;
 	static GtkWidget *menu_remove_plot;
-	struct pevent_record *record = NULL;
+	struct tep_record *record = NULL;
 	struct graph_plot *plot;
 	const char *comm;
 	guint64 time;
@@ -741,8 +728,8 @@ do_pop_up(GtkWidget *widget, GdkEventButton *event, gpointer data)
 	else
 		gtk_widget_set_sensitive(menu_filter_enable, FALSE);
 
-	if (filter_task_count(ginfo->task_filter) ||
-	    filter_task_count(ginfo->hide_tasks))
+	if (tracecmd_filter_task_count(ginfo->task_filter) ||
+	    tracecmd_filter_task_count(ginfo->hide_tasks))
 		gtk_widget_set_sensitive(menu_filter_clear_tasks, TRUE);
 	else
 		gtk_widget_set_sensitive(menu_filter_clear_tasks, FALSE);
@@ -761,8 +748,8 @@ do_pop_up(GtkWidget *widget, GdkEventButton *event, gpointer data)
 	if (record) {
 
 		if (!trace_graph_check_sched_switch(ginfo, record, &pid, &comm)) {
-			pid = pevent_data_pid(ginfo->pevent, record);
-			comm = pevent_data_comm_from_pid(ginfo->pevent, pid);
+			pid = tep_data_pid(ginfo->pevent, record);
+			comm = tep_data_comm_from_pid(ginfo->pevent, pid);
 		}
 
 		len = strlen(comm) + 50;
@@ -1017,7 +1004,7 @@ info_button_release_event(GtkWidget *widget, GdkEventMotion *event, gpointer dat
 #define PLOT_BOARDER 5
 
 int trace_graph_check_sched_wakeup(struct graph_info *ginfo,
-				   struct pevent_record *record,
+				   struct tep_record *record,
 				   gint *pid)
 {
 	struct event_format *event;
@@ -1029,38 +1016,38 @@ int trace_graph_check_sched_wakeup(struct graph_info *ginfo,
 
 		found = FALSE;
 
-		event = pevent_find_event_by_name(ginfo->pevent,
-						  NULL, "sched_wakeup");
+		event = tep_find_event_by_name(ginfo->pevent,
+					       NULL, "sched_wakeup");
 		if (event) {
 			found = TRUE;
 			ginfo->event_wakeup_id = event->id;
-			ginfo->wakeup_pid_field = pevent_find_field(event, "pid");
-			ginfo->wakeup_success_field = pevent_find_field(event, "success");
+			ginfo->wakeup_pid_field = tep_find_field(event, "pid");
+			ginfo->wakeup_success_field = tep_find_field(event, "success");
 		}
 
 
-		event = pevent_find_event_by_name(ginfo->pevent,
-						  NULL, "sched_wakeup_new");
+		event = tep_find_event_by_name(ginfo->pevent,
+					       NULL, "sched_wakeup_new");
 		if (event) {
 			found = TRUE;
 			ginfo->event_wakeup_new_id = event->id;
-			ginfo->wakeup_new_pid_field = pevent_find_field(event, "pid");
-			ginfo->wakeup_new_success_field = pevent_find_field(event, "success");
+			ginfo->wakeup_new_pid_field = tep_find_field(event, "pid");
+			ginfo->wakeup_new_success_field = tep_find_field(event, "success");
 		}
 		if (!found)
 			return 0;
 	}
 
-	id = pevent_data_type(ginfo->pevent, record);
+	id = tep_data_type(ginfo->pevent, record);
 
 	if (id == ginfo->event_wakeup_id) {
 		/* We only want those that actually woke up the task */
 		if (ginfo->wakeup_success_field) {
-			pevent_read_number_field(ginfo->wakeup_success_field, record->data, &val);
+			tep_read_number_field(ginfo->wakeup_success_field, record->data, &val);
 			if (!val)
 				return 0;
 		}
-		pevent_read_number_field(ginfo->wakeup_pid_field, record->data, &val);
+		tep_read_number_field(ginfo->wakeup_pid_field, record->data, &val);
 		if (pid)
 			*pid = val;
 		return 1;
@@ -1069,11 +1056,11 @@ int trace_graph_check_sched_wakeup(struct graph_info *ginfo,
 	if (id == ginfo->event_wakeup_new_id) {
 		/* We only want those that actually woke up the task */
 		if (ginfo->wakeup_new_success_field) {
-			pevent_read_number_field(ginfo->wakeup_new_success_field, record->data, &val);
+			tep_read_number_field(ginfo->wakeup_new_success_field, record->data, &val);
 			if (!val)
 				return 0;
 		}
-		pevent_read_number_field(ginfo->wakeup_new_pid_field, record->data, &val);
+		tep_read_number_field(ginfo->wakeup_new_pid_field, record->data, &val);
 		if (pid)
 			*pid = val;
 		return 1;
@@ -1083,7 +1070,7 @@ int trace_graph_check_sched_wakeup(struct graph_info *ginfo,
 }
 
 int trace_graph_check_sched_switch(struct graph_info *ginfo,
-				   struct pevent_record *record,
+				   struct tep_record *record,
 				   gint *pid, const char **comm)
 {
 	unsigned long long val;
@@ -1094,33 +1081,33 @@ int trace_graph_check_sched_switch(struct graph_info *ginfo,
 
 	if (ginfo->read_comms) {
 		/* record all pids, for task plots */
-		this_pid = pevent_data_pid(ginfo->pevent, record);
+		this_pid = tep_data_pid(ginfo->pevent, record);
 		add_task_hash(ginfo, this_pid);
 	}
 
 	if (ginfo->event_sched_switch_id < 0) {
-		event = pevent_find_event_by_name(ginfo->pevent,
-						  NULL, "sched_switch");
+		event = tep_find_event_by_name(ginfo->pevent,
+					       NULL, "sched_switch");
 		if (!event)
 			return 0;
 
 		ginfo->event_sched_switch_id = event->id;
-		ginfo->event_prev_state = pevent_find_field(event, "prev_state");
-		ginfo->event_pid_field = pevent_find_field(event, "next_pid");
-		ginfo->event_comm_field = pevent_find_field(event, "next_comm");
+		ginfo->event_prev_state = tep_find_field(event, "prev_state");
+		ginfo->event_pid_field = tep_find_field(event, "next_pid");
+		ginfo->event_comm_field = tep_find_field(event, "next_comm");
 
-		event = pevent_find_event_by_name(ginfo->pevent,
-						  "ftrace", "context_switch");
+		event = tep_find_event_by_name(ginfo->pevent,
+					       "ftrace", "context_switch");
 		if (event) {
 			ginfo->ftrace_sched_switch_id = event->id;
-			ginfo->ftrace_pid_field = pevent_find_field(event, "next_pid");
-			ginfo->ftrace_comm_field = pevent_find_field(event, "next_comm");
+			ginfo->ftrace_pid_field = tep_find_field(event, "next_pid");
+			ginfo->ftrace_comm_field = tep_find_field(event, "next_comm");
 		}
 	}
 
-	id = pevent_data_type(ginfo->pevent, record);
+	id = tep_data_type(ginfo->pevent, record);
 	if (id == ginfo->event_sched_switch_id) {
-		pevent_read_number_field(ginfo->event_pid_field, record->data, &val);
+		tep_read_number_field(ginfo->event_pid_field, record->data, &val);
 		if (comm)
 			*comm = record->data + ginfo->event_comm_field->offset;
 		if (pid)
@@ -1129,7 +1116,7 @@ int trace_graph_check_sched_switch(struct graph_info *ginfo,
 	}
 
 	if (id == ginfo->ftrace_sched_switch_id) {
-		pevent_read_number_field(ginfo->ftrace_pid_field, record->data, &val);
+		tep_read_number_field(ginfo->ftrace_pid_field, record->data, &val);
 		if (comm && ginfo->ftrace_comm_field)
 			*comm = record->data + ginfo->ftrace_comm_field->offset;
 		else
@@ -1146,9 +1133,9 @@ int trace_graph_check_sched_switch(struct graph_info *ginfo,
 		 * First time through, register any missing
 		 *  comm / pid mappings.
 		 */
-		if (!pevent_pid_is_registered(ginfo->pevent, *pid))
-			pevent_register_comm(ginfo->pevent,
-					     *comm, *pid);
+		if (!tep_pid_is_registered(ginfo->pevent, *pid))
+			tep_register_comm(ginfo->pevent,
+					  *comm, *pid);
 	}
 
 	return ret;
@@ -1164,7 +1151,7 @@ static void enter_id(gint **ids, gint id, gint *len)
 
 enum graph_irq_type
 trace_graph_check_irq(struct graph_info *ginfo,
-		      struct pevent_record *record)
+		      struct tep_record *record)
 {
 	struct event_format *event;
 	struct event_format **events;
@@ -1177,39 +1164,39 @@ trace_graph_check_irq(struct graph_info *ginfo,
 		gint soft_irq_entry_len = 0;
 		gint soft_irq_exit_len = 0;
 
-		event = pevent_find_event_by_name(ginfo->pevent,
-						  NULL, "irq_handler_exit");
+		event = tep_find_event_by_name(ginfo->pevent,
+					       NULL, "irq_handler_exit");
 		if (event)
 			enter_id(&ginfo->hard_irq_exit_ids, event->id,
 				 &hard_irq_exit_len);
 		else
 			ginfo->hard_irq_exit_ids = null_int_array;
 
-		event = pevent_find_event_by_name(ginfo->pevent,
-						  NULL, "irq_handler_entry");
+		event = tep_find_event_by_name(ginfo->pevent,
+					       NULL, "irq_handler_entry");
 		if (event)
 			enter_id(&ginfo->hard_irq_entry_ids, event->id,
 				 &hard_irq_entry_len);
 		else
 			ginfo->hard_irq_entry_ids = null_int_array;
 
-		event = pevent_find_event_by_name(ginfo->pevent,
-						  NULL, "softirq_exit");
+		event = tep_find_event_by_name(ginfo->pevent,
+					       NULL, "softirq_exit");
 		if (event)
 			enter_id(&ginfo->soft_irq_exit_ids, event->id,
 				 &soft_irq_exit_len);
 		else
 			ginfo->soft_irq_exit_ids = null_int_array;
 
-		event = pevent_find_event_by_name(ginfo->pevent,
-						  NULL, "softirq_entry");
+		event = tep_find_event_by_name(ginfo->pevent,
+					       NULL, "softirq_entry");
 		if (event)
 			enter_id(&ginfo->soft_irq_entry_ids, event->id,
 				 &soft_irq_entry_len);
 		else
 			ginfo->soft_irq_entry_ids = null_int_array;
 
-		events = pevent_list_events(ginfo->pevent, EVENT_SORT_SYSTEM);
+		events = tep_list_events(ginfo->pevent, EVENT_SORT_SYSTEM);
 
 		for (i = 0; events[i]; i++) {
 			event = events[i];
@@ -1234,7 +1221,7 @@ trace_graph_check_irq(struct graph_info *ginfo,
 		}
 	}
 
-	id = pevent_data_type(ginfo->pevent, record);
+	id = tep_data_type(ginfo->pevent, record);
 
 	for (i = 0; ginfo->hard_irq_exit_ids[i] != -1; i++)
 		if (id == ginfo->hard_irq_exit_ids[i])
@@ -1845,7 +1832,7 @@ static void draw_plot_box(struct graph_info *ginfo, int i,
 }
 
 static void draw_plot(struct graph_info *ginfo, struct graph_plot *plot,
-		      struct pevent_record *record)
+		      struct tep_record *record)
 {
 	static PangoFontDescription *font;
 	PangoLayout *layout;
@@ -1939,7 +1926,7 @@ static void draw_plots(struct graph_info *ginfo, gint new_width)
 	struct timeval tv_start, tv_stop;
 	struct plot_list *list;
 	struct graph_plot *plot;
-	struct pevent_record *record;
+	struct tep_record *record;
 	struct plot_hash *hash;
 	gint pid;
 	gint cpu;
@@ -2010,7 +1997,7 @@ static void draw_plots(struct graph_info *ginfo, gint new_width)
 			for (list = hash->plots; list; list = list->next)
 				draw_plot(ginfo, list->plot, record);
 		}
-		pid = pevent_data_pid(ginfo->pevent, record);
+		pid = tep_data_pid(ginfo->pevent, record);
 		hash = trace_graph_plot_find_task(ginfo, pid);
 		if (hash) {
 			for (list = hash->plots; list; list = list->next)
@@ -2248,14 +2235,14 @@ void trace_graph_event_filter_callback(gboolean accept,
 	if (all_events) {
 		ginfo->all_events = TRUE;
 		/* filter is no longer used */
-		pevent_filter_reset(ginfo->event_filter);
+		tep_filter_reset(ginfo->event_filter);
 		redraw_graph(ginfo);
 		return;
 	}
 
 	ginfo->all_events = FALSE;
 
-	pevent_filter_clear_trivial(ginfo->event_filter, FILTER_TRIVIAL_BOTH);
+	tep_filter_clear_trivial(ginfo->event_filter, FILTER_TRIVIAL_BOTH);
 
 	trace_filter_convert_char_to_filter(ginfo->event_filter,
 					    systems, events);
@@ -2284,20 +2271,20 @@ void trace_graph_adv_filter_callback(gboolean accept,
 
 	if (event_ids) {
 		for (i = 0; event_ids[i] >= 0; i++)
-			pevent_filter_remove_event(event_filter, event_ids[i]);
+			tep_filter_remove_event(event_filter, event_ids[i]);
 	}
 
 	if (has_text(text)) {
 
 		ginfo->all_events = FALSE;
 
-		pevent_filter_clear_trivial(event_filter,
+		tep_filter_clear_trivial(event_filter,
 					    FILTER_TRIVIAL_BOTH);
 
-		ret = pevent_filter_add_filter_str(event_filter, text);
+		ret = tep_filter_add_filter_str(event_filter, text);
 		if (ret < 0) {
-			pevent_strerror(event_filter->pevent, ret,
-					error_str, sizeof(error_str));
+			tep_strerror(event_filter->pevent, ret,
+				     error_str, sizeof(error_str));
 			warning("filter failed due to: %s", error_str);
 			return;
 		}
@@ -2313,14 +2300,14 @@ void trace_graph_copy_filter(struct graph_info *ginfo,
 	if (all_events) {
 		ginfo->all_events = TRUE;
 		/* filter is no longer used */
-		pevent_filter_reset(ginfo->event_filter);
+		tep_filter_reset(ginfo->event_filter);
 		redraw_graph(ginfo);
 		return;
 	}
 
 	ginfo->all_events = FALSE;
 
-	pevent_filter_copy(ginfo->event_filter, event_filter);
+	tep_filter_copy(ginfo->event_filter, event_filter);
 
 	redraw_graph(ginfo);
 }
@@ -2392,8 +2379,8 @@ destroy_event(GtkWidget *widget, gpointer data)
 
 	trace_graph_free_info(ginfo);
 
-	filter_task_hash_free(ginfo->task_filter);
-	filter_task_hash_free(ginfo->hide_tasks);
+	tracecmd_filter_id_hash_free(ginfo->task_filter);
+	tracecmd_filter_id_hash_free(ginfo->hide_tasks);
 
 	return TRUE;
 }
@@ -2528,7 +2515,7 @@ static void free_int_array(int **array)
 void trace_graph_free_info(struct graph_info *ginfo)
 {
 	if (ginfo->handle) {
-		pevent_filter_free(ginfo->event_filter);
+		tep_filter_free(ginfo->event_filter);
 		trace_graph_plot_free(ginfo);
 		tracecmd_close(ginfo->handle);
 		free_task_hash(ginfo);
@@ -2546,7 +2533,7 @@ void trace_graph_free_info(struct graph_info *ginfo)
 static int load_handle(struct graph_info *ginfo,
 		       struct tracecmd_input *handle)
 {
-	struct pevent_record *record;
+	struct tep_record *record;
 	unsigned long sec, usec;
 	gint cpu;
 
@@ -2565,7 +2552,7 @@ static int load_handle(struct graph_info *ginfo,
 	ginfo->cpus = tracecmd_cpus(handle);
 	ginfo->all_events = TRUE;
 
-	ginfo->event_filter = pevent_filter_alloc(ginfo->pevent);
+	ginfo->event_filter = tep_filter_alloc(ginfo->pevent);
 
 	ginfo->start_time = -1ULL;
 	ginfo->end_time = 0;
@@ -2658,7 +2645,7 @@ static int load_event_filter(struct graph_info *ginfo,
 	if (!node)
 		return -1;
 
-	pevent_filter_clear_trivial(event_filter, FILTER_TRIVIAL_BOTH);
+	tep_filter_clear_trivial(event_filter, FILTER_TRIVIAL_BOTH);
 	ginfo->all_events = FALSE;
 
 	trace_filter_load_events(event_filter, handle, node);
@@ -2673,8 +2660,8 @@ int trace_graph_load_filters(struct graph_info *ginfo,
 	struct tracecmd_xml_system_node *syschild;
 	const char *name;
 
-	if (filter_task_count(ginfo->task_filter) ||
-	    filter_task_count(ginfo->hide_tasks))
+	if (tracecmd_filter_task_count(ginfo->task_filter) ||
+	    tracecmd_filter_task_count(ginfo->hide_tasks))
 		ginfo->filter_available = 1;
 	else
 		ginfo->filter_available = 0;
@@ -2696,8 +2683,8 @@ int trace_graph_load_filters(struct graph_info *ginfo,
 		syschild = tracecmd_xml_node_next(syschild);
 	} while (syschild);
 
-	if (filter_task_count(ginfo->task_filter) ||
-	    filter_task_count(ginfo->hide_tasks))
+	if (tracecmd_filter_task_count(ginfo->task_filter) ||
+	    tracecmd_filter_task_count(ginfo->hide_tasks))
 		ginfo->filter_available = 1;
 	else
 		ginfo->filter_available = 0;
@@ -2781,8 +2768,8 @@ trace_graph_create_with_callbacks(struct tracecmd_input *handle,
 
 	ginfo->callbacks = cbs;
 
-	ginfo->task_filter = filter_task_hash_alloc();
-	ginfo->hide_tasks = filter_task_hash_alloc();
+	ginfo->task_filter = tracecmd_filter_id_hash_alloc();
+	ginfo->hide_tasks = tracecmd_filter_id_hash_alloc();
 
 	ginfo->widget = gtk_vbox_new(FALSE, 0);
 	gtk_widget_show(ginfo->widget);

@@ -70,7 +70,7 @@ class Event(object, DictMixin):
         free_record(self._record)
 
     def __getitem__(self, n):
-        f = pevent_find_field(self._format, n)
+        f = tep_find_field(self._format, n)
         if f is None:
             raise KeyError("no field '%s'" % n)
         return Field(self._record, f)
@@ -80,7 +80,7 @@ class Event(object, DictMixin):
 
     @cached_property
     def comm(self):
-        return pevent_data_comm_from_pid(self._pevent, self.pid)
+        return tep_data_comm_from_pid(self._pevent, self.pid)
 
     @cached_property
     def cpu(self):
@@ -92,7 +92,7 @@ class Event(object, DictMixin):
 
     @cached_property
     def pid(self):
-        return pevent_data_pid(self._pevent, self._record)
+        return tep_data_pid(self._pevent, self._record)
 
     @cached_property
     def ts(self):
@@ -100,19 +100,19 @@ class Event(object, DictMixin):
 
     @cached_property
     def type(self):
-        return pevent_data_type(self._pevent, self._record)
+        return tep_data_type(self._pevent, self._record)
 
     def num_field(self, name):
-        f = pevent_find_any_field(self._format, name)
+        f = tep_find_any_field(self._format, name)
         if f is None:
             return None
-        ret, val = pevent_read_number_field(f, pevent_record_data_get(self._record))
+        ret, val = tep_read_number_field(f, pevent_record_data_get(self._record))
         if ret:
             return None
         return val
 
     def str_field(self, name):
-        f = pevent_find_any_field(self._format, name)
+        f = tep_find_any_field(self._format, name)
         if f is None:
             return None
         return py_field_get_str(f, self._record)
@@ -141,7 +141,7 @@ class Field(object):
         return py_field_get_data(self._field, self._record)
 
     def __long__(self):
-        ret, val =  pevent_read_number_field(self._field,
+        ret, val =  tep_read_number_field(self._field,
                                              pevent_record_data_get(self._record))
         if ret:
             raise FieldError("Not a number field")
@@ -166,7 +166,7 @@ class PEvent(object):
 
     @cached_property
     def file_endian(self):
-        if pevent_is_file_bigendian(self._pevent):
+        if tep_is_file_bigendian(self._pevent):
             return '>'
         return '<'
 
@@ -203,8 +203,8 @@ class Trace(object):
     def read_event(self, cpu):
         rec = tracecmd_read_data(self._handle, cpu)
         if rec:
-            type = pevent_data_type(self._pevent, rec)
-            format = pevent_data_event_from_type(self._pevent, type)
+            type = tep_data_type(self._pevent, rec)
+            format = tep_data_event_from_type(self._pevent, type)
             # rec ownership goes over to Event instance
             return Event(self._pevent, rec, format)
         return None
@@ -215,8 +215,8 @@ class Trace(object):
         if isinstance(res, int):
             return None
         rec, cpu = res
-        type = pevent_data_type(self._pevent, rec)
-        format = pevent_data_event_from_type(self._pevent, type)
+        type = tep_data_type(self._pevent, rec)
+        format = tep_data_event_from_type(self._pevent, type)
         # rec ownership goes over to Event instance
         return Event(self._pevent, rec, format)
 
@@ -225,16 +225,16 @@ class Trace(object):
         if isinstance(res, int):
             return None
         rec, cpu = res
-        type = pevent_data_type(self._pevent, rec)
-        format = pevent_data_event_from_type(self._pevent, type)
+        type = tep_data_type(self._pevent, rec)
+        format = tep_data_event_from_type(self._pevent, type)
         return Event(self._pevent, rec, format)
 
     def peek_event(self, cpu):
         rec = tracecmd_peek_data_ref(self._handle, cpu)
         if rec is None:
             return None
-        type = pevent_data_type(self._pevent, rec)
-        format = pevent_data_event_from_type(self._pevent, type)
+        type = tep_data_type(self._pevent, rec)
+        format = tep_data_event_from_type(self._pevent, type)
         # rec ownership goes over to Event instance
         return Event(self._pevent, rec, format)
 

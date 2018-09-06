@@ -1,21 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #include <stdlib.h>
 #include <getopt.h>
@@ -27,7 +13,7 @@ void trace_check_events(int argc, char **argv)
 {
 	const char *tracing;
 	int ret, c;
-	struct pevent *pevent = NULL;
+	struct tep_handle *pevent = NULL;
 	struct plugin_list *list = NULL;
 
 	while ((c = getopt(argc-1, argv+1, "+hN")) >= 0) {
@@ -52,7 +38,7 @@ void trace_check_events(int argc, char **argv)
 		exit(EINVAL);
 	}
 
-	pevent = pevent_alloc();
+	pevent = tep_alloc();
 	if (!pevent)
 		exit(EINVAL);
 	list = tracecmd_load_plugins(pevent);
@@ -60,7 +46,7 @@ void trace_check_events(int argc, char **argv)
 	if (ret || pevent->parsing_failures)
 		ret = EINVAL;
 	tracecmd_unload_plugins(list, pevent);
-	pevent_free(pevent);
+	tep_free(pevent);
 
 	return;
 }

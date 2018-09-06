@@ -1,21 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #include <stdlib.h>
 #include <getopt.h>
@@ -149,7 +135,14 @@ void trace_show(int argc, char **argv)
 		file = "snapshot";
 
 	if (cpu) {
-		snprintf(cpu_path, 128, "per_cpu/cpu%d/%s", atoi(cpu), file);
+		char *endptr;
+		long val;
+
+		errno = 0;
+		val = strtol(cpu, &endptr, 0);
+		if (errno || cpu == endptr)
+			die("Invalid CPU index '%s'", cpu);
+		snprintf(cpu_path, 128, "per_cpu/cpu%ld/%s", val, file);
 		file = cpu_path;
 	}
 

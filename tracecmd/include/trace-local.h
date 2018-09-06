@@ -1,21 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #ifndef __TRACE_LOCAL_H
 #define __TRACE_LOCAL_H
@@ -48,7 +34,7 @@ struct pid_record_data {
 	int			closed;
 	struct tracecmd_input	*stream;
 	struct buffer_instance	*instance;
-	struct pevent_record	*record;
+	struct tep_record	*record;
 };
 
 void show_file(const char *name);
@@ -115,7 +101,7 @@ trace_stream_init(struct buffer_instance *instance, int cpu, int fd, int cpus,
 		  tracecmd_handle_init_func handle_init, int global);
 int trace_stream_read(struct pid_record_data *pids, int nr_pids, struct timeval *tv);
 
-void trace_show_data(struct tracecmd_input *handle, struct pevent_record *record);
+void trace_show_data(struct tracecmd_input *handle, struct tep_record *record);
 
 /* --- event interation --- */
 

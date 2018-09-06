@@ -1,22 +1,7 @@
+// SPDX-License-Identifier: LGPL-2.1
 /*
  * Copyright (C) 2009 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation;
- * version 2.1 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this program; if not,  see <http://www.gnu.org/licenses>
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #include <stdio.h>
 #include "trace-cmd.h"
@@ -46,7 +31,7 @@ static const char blk_body[] = "\n"
 
 int tracecmd_blk_hack(struct tracecmd_input *handle)
 {
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 	struct event_format *event;
 	struct format_field *field;
 	char buf[4096]; /* way more than enough! */
@@ -63,7 +48,7 @@ int tracecmd_blk_hack(struct tracecmd_input *handle)
 	 */
 
 	/* It was originally behind the "power" event */
-	event = pevent_find_event_by_name(pevent, "ftrace", "power");
+	event = tep_find_event_by_name(pevent, "ftrace", "power");
 	if (event) {
 		id = event->id + 1;
 		goto found;
@@ -73,7 +58,7 @@ int tracecmd_blk_hack(struct tracecmd_input *handle)
 	 * But the power tracer is now in perf.
 	 * Then it was after kmem_free
 	 */
-	event = pevent_find_event_by_name(pevent, "ftrace", "kmem_free");
+	event = tep_find_event_by_name(pevent, "ftrace", "kmem_free");
 	if (event) {
 		id = event->id + 1;
 		goto found;
@@ -83,7 +68,7 @@ int tracecmd_blk_hack(struct tracecmd_input *handle)
 	 * But that then went away.
 	 * Currently it should be behind the user stack.
 	 */
-	event = pevent_find_event_by_name(pevent, "ftrace", "user_stack");
+	event = tep_find_event_by_name(pevent, "ftrace", "user_stack");
 	if (event) {
 		id = event->id + 1;
 		goto found;
@@ -126,23 +111,23 @@ int tracecmd_blk_hack(struct tracecmd_input *handle)
 	 */
 
 	/* Make sure the common fields exist */
-	field = pevent_find_common_field(event, "common_type");
+	field = tep_find_common_field(event, "common_type");
 	if (!field || field->offset != 0 || field->size != 2)
 		goto fail;
-	field = pevent_find_common_field(event, "common_flags");
+	field = tep_find_common_field(event, "common_flags");
 	if (!field || field->offset != 2 || field->size != 1)
 		goto fail;
-	field = pevent_find_common_field(event, "common_preempt_count");
+	field = tep_find_common_field(event, "common_preempt_count");
 	if (!field || field->offset != 3 || field->size != 1)
 		goto fail;
-	field = pevent_find_common_field(event, "common_pid");
+	field = tep_find_common_field(event, "common_pid");
 	if (!field || field->offset != 4 || field->size != 4)
 		goto fail;
 	r = sprintf(buf, blk_event_start, id);
 	l = r;
 
 	/* lock depth is optional */
-	field = pevent_find_common_field(event, "common_lock_depth");
+	field = tep_find_common_field(event, "common_lock_depth");
 	if (field) {
 		if (field->offset != 8 || field->size != 4)
 			return -1;
@@ -154,7 +139,7 @@ int tracecmd_blk_hack(struct tracecmd_input *handle)
 
 	/* Parse this event */
 	l += r;
-	pevent_parse_event(pevent, buf, l, "ftrace");
+	tep_parse_event(pevent, buf, l, "ftrace");
 
 	return 0;
 

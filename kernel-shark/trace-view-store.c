@@ -1,24 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
  * Implemented a fixed row size to speed up list.
  *  Copyright (C) 2010 Darren Hart <dvhltc@us.ibm.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #include "trace-view-store.h"
 #include <stdlib.h>
@@ -231,14 +217,14 @@ trace_view_store_finalize (GObject *object)
 	g_free(store->rows);
 	g_free(store->cpu_items);
 
-	filter_task_hash_free(store->task_filter);
+	tracecmd_filter_id_hash_free(store->task_filter);
 
 	if (store->spin) {
 		g_object_unref(store->spin);
 		store->spin = NULL;
 	}
 
-	pevent_filter_free(store->event_filter);
+	tep_filter_free(store->event_filter);
 	tracecmd_close(store->handle);
 
 	/* must chain up - finalize parent */
@@ -419,9 +405,9 @@ trace_view_store_get_value (GtkTreeModel *tree_model,
 	TraceViewRecord	*record;
 	TraceViewStore	*trace_view_store;
 	struct trace_seq s;
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 	struct event_format *event;
-	struct pevent_record *data;
+	struct tep_record *data;
 	const gchar *comm;
 	gchar *str;
 	guint64 secs, usecs;
@@ -481,26 +467,26 @@ trace_view_store_get_value (GtkTreeModel *tree_model,
 		switch (column) {
 		case TRACE_VIEW_STORE_COL_COMM:
 		case TRACE_VIEW_STORE_COL_PID:
-			val = pevent_data_pid(pevent, data);
+			val = tep_data_pid(pevent, data);
 			if (column == TRACE_VIEW_STORE_COL_PID)
 				g_value_set_uint(value, val);
 			else {
-				comm = pevent_data_comm_from_pid(pevent, val);
+				comm = tep_data_comm_from_pid(pevent, val);
 				g_value_set_string(value, comm);
 			}
 			break;
 
 		case TRACE_VIEW_STORE_COL_LAT:
 			trace_seq_init(&s);
-			pevent_data_lat_fmt(pevent, &s, data);
+			tep_data_lat_fmt(pevent, &s, data);
 			g_value_set_string(value, s.buffer);
 			trace_seq_destroy(&s);
 			break;
 
 		case TRACE_VIEW_STORE_COL_EVENT:
 		case TRACE_VIEW_STORE_COL_INFO:
-			val = pevent_data_type(pevent, data);
-			event = pevent_data_event_from_type(pevent, val);
+			val = tep_data_type(pevent, data);
+			event = tep_data_event_from_type(pevent, val);
 			if (!event) {
 				if (column == TRACE_VIEW_STORE_COL_EVENT)
 					g_value_set_string(value, "[UNKNOWN EVENT]");
@@ -513,7 +499,7 @@ trace_view_store_get_value (GtkTreeModel *tree_model,
 			}
 
 			trace_seq_init(&s);
-			pevent_event_info(&s, event, data);
+			tep_event_info(&s, event, data);
 			g_value_set_string(value, s.buffer);
 			trace_seq_destroy(&s);
 			break;
@@ -526,7 +512,7 @@ void trace_view_store_clear_all_events_enabled(TraceViewStore *store)
 {
 	g_return_if_fail (TRACE_VIEW_IS_LIST (store));
 
-	pevent_filter_clear_trivial(store->event_filter, FILTER_TRIVIAL_BOTH);
+	tep_filter_clear_trivial(store->event_filter, FILTER_TRIVIAL_BOTH);
 	store->all_events = 0;
 }
 
@@ -541,7 +527,7 @@ void trace_view_store_set_all_events_enabled(TraceViewStore *store)
 	 * All enabled means that we don't need to look at 
 	 * the system events, so free those arrays.
 	 */
-	pevent_filter_reset(store->event_filter);
+	tep_filter_reset(store->event_filter);
 
 	store->all_events = 1;
 }
@@ -854,7 +840,7 @@ TraceViewStore *
 trace_view_store_new (struct tracecmd_input *handle)
 {
 	TraceViewStore *newstore;
-	struct pevent_record *data;
+	struct tep_record *data;
 	gint cpu, count, total=0;
 	struct temp {
 		guint64		offset;
@@ -869,7 +855,7 @@ trace_view_store_new (struct tracecmd_input *handle)
 	newstore->handle = handle;
 	newstore->cpus = tracecmd_cpus(handle);
 	tracecmd_ref(handle);
-	newstore->event_filter = pevent_filter_alloc(tracecmd_get_pevent(handle));
+	newstore->event_filter = tep_filter_alloc(tracecmd_get_pevent(handle));
 
 	newstore->cpu_list = g_new(TraceViewRecord *, newstore->cpus);
 	g_assert(newstore->cpu_list != NULL);
@@ -1153,29 +1139,29 @@ gint trace_view_store_get_num_actual_rows(TraceViewStore *store)
 	return store->actual_rows;
 }
 
-gint get_next_pid(TraceViewStore *store, struct pevent *pevent, struct pevent_record *record)
+gint get_next_pid(TraceViewStore *store, struct tep_handle *pevent, struct tep_record *record)
 {
 	unsigned long long val;
 
-	pevent_read_number_field(store->sched_switch_next_field, record->data, &val);
+	tep_read_number_field(store->sched_switch_next_field, record->data, &val);
 
 	return val;
 }
 
-gint get_wakeup_pid(TraceViewStore *store, struct pevent *pevent, struct pevent_record *record)
+gint get_wakeup_pid(TraceViewStore *store, struct tep_handle *pevent, struct tep_record *record)
 {
 	unsigned long long val;
 
-	pevent_read_number_field(store->sched_wakeup_pid_field, record->data, &val);
+	tep_read_number_field(store->sched_wakeup_pid_field, record->data, &val);
 
 	return val;
 }
 
-gint get_wakeup_new_pid(TraceViewStore *store, struct pevent *pevent, struct pevent_record *record)
+gint get_wakeup_new_pid(TraceViewStore *store, struct tep_handle *pevent, struct tep_record *record)
 {
 	unsigned long long val;
 
-	pevent_read_number_field(store->sched_wakeup_new_pid_field, record->data, &val);
+	tep_read_number_field(store->sched_wakeup_new_pid_field, record->data, &val);
 
 	return val;
 }
@@ -1183,22 +1169,22 @@ gint get_wakeup_new_pid(TraceViewStore *store, struct pevent *pevent, struct pev
 static gboolean view_task(TraceViewStore *store, gint pid)
 {
 	return (!store->task_filter ||
-		!filter_task_count(store->task_filter) ||
-		filter_task_find_pid(store->task_filter, pid)) &&
+		!tracecmd_filter_task_count(store->task_filter) ||
+		tracecmd_filter_id_find(store->task_filter, pid)) &&
 		(!store->hide_tasks ||
-		 !filter_task_count(store->hide_tasks) ||
-		 !filter_task_find_pid(store->hide_tasks, pid));
+		 !tracecmd_filter_task_count(store->hide_tasks) ||
+		 !tracecmd_filter_id_find(store->hide_tasks, pid));
 }
 
-static gboolean show_task(TraceViewStore *store, struct pevent *pevent,
-			  struct pevent_record *record, gint pid)
+static gboolean show_task(TraceViewStore *store, struct tep_handle *pevent,
+			  struct tep_record *record, gint pid)
 {
 	gint event_id;
 
 	if (view_task(store, pid))
 		return TRUE;
 
-	event_id = pevent_data_type(pevent, record);
+	event_id = tep_data_type(pevent, record);
 
 	if (store->sched_switch_next_field &&
 	    event_id == store->sched_switch_event->id) {
@@ -1230,8 +1216,8 @@ static gboolean show_task(TraceViewStore *store, struct pevent *pevent,
 static void update_filter_tasks(TraceViewStore *store)
 {
 	struct tracecmd_input *handle;
-	struct pevent *pevent;
-	struct pevent_record *record;
+	struct tep_handle *pevent;
+	struct tep_record *record;
 	gint pid;
 	gint cpu;
 	gint i;
@@ -1241,23 +1227,23 @@ static void update_filter_tasks(TraceViewStore *store)
 
 	if (!store->sched_switch_event) {
 		store->sched_switch_event =
-			pevent_find_event_by_name(pevent, "sched", "sched_switch");
+			tep_find_event_by_name(pevent, "sched", "sched_switch");
 		if (store->sched_switch_event)
 			store->sched_switch_next_field =
-				pevent_find_any_field(store->sched_switch_event,
+				tep_find_any_field(store->sched_switch_event,
 						      "next_pid");
 		store->sched_wakeup_event =
-			pevent_find_event_by_name(pevent, "sched", "sched_wakeup");
+			tep_find_event_by_name(pevent, "sched", "sched_wakeup");
 		if (store->sched_wakeup_event)
 			store->sched_wakeup_pid_field =
-				pevent_find_any_field(store->sched_wakeup_event,
+				tep_find_any_field(store->sched_wakeup_event,
 						      "pid");
 
 		store->sched_wakeup_new_event =
-			pevent_find_event_by_name(pevent, "sched", "sched_wakeup_new");
+			tep_find_event_by_name(pevent, "sched", "sched_wakeup_new");
 		if (store->sched_wakeup_new_event)
 			store->sched_wakeup_new_pid_field =
-				pevent_find_any_field(store->sched_wakeup_new_event,
+				tep_find_any_field(store->sched_wakeup_new_event,
 						      "pid");
 	}
 
@@ -1271,15 +1257,15 @@ static void update_filter_tasks(TraceViewStore *store)
 			/* The record may be filtered by the events */
 			if (!store->all_events) {
 				int ret;
-				ret = pevent_filter_match(store->event_filter,
-							  record);
+				ret = tep_filter_match(store->event_filter,
+						       record);
 				if (ret != FILTER_MATCH) {
 					store->cpu_list[cpu][i].visible = 0;
 					goto skip;
 				}
 			}
 
-			pid = pevent_data_pid(pevent, record);
+			pid = tep_data_pid(pevent, record);
 			if (show_task(store, pevent, record, pid))
 				store->cpu_list[cpu][i].visible = 1;
 			else
@@ -1295,30 +1281,32 @@ static void update_filter_tasks(TraceViewStore *store)
 	merge_sort_rows_ts(store);
 }
 
-void trace_view_store_filter_tasks(TraceViewStore *store, struct filter_task *filter)
+void trace_view_store_filter_tasks(TraceViewStore *store,
+				   struct tracecmd_filter_id *filter)
 {
 	g_return_if_fail (TRACE_VIEW_IS_LIST (store));
 
 	/* We may pass in the store->task_filter. Don't free it if we do */
 	if (store->task_filter && store->task_filter != filter)
-		filter_task_hash_free(store->task_filter);
+		tracecmd_filter_id_hash_free(store->task_filter);
 
 	if (store->task_filter != filter)
-		store->task_filter = filter_task_hash_copy(filter);
+		store->task_filter = tracecmd_filter_id_hash_copy(filter);
 
 	update_filter_tasks(store);
 }
 
-void trace_view_store_hide_tasks(TraceViewStore *store, struct filter_task *filter)
+void trace_view_store_hide_tasks(TraceViewStore *store,
+				 struct tracecmd_filter_id *filter)
 {
 	g_return_if_fail (TRACE_VIEW_IS_LIST (store));
 
 	/* We may pass in the store->task_filter. Don't free it if we do */
 	if (store->hide_tasks && store->hide_tasks != filter)
-		filter_task_hash_free(store->hide_tasks);
+		tracecmd_filter_id_hash_free(store->hide_tasks);
 
 	if (store->hide_tasks != filter)
-		store->hide_tasks = filter_task_hash_copy(filter);
+		store->hide_tasks = tracecmd_filter_id_hash_copy(filter);
 
 	update_filter_tasks(store);
 }
@@ -1331,23 +1319,23 @@ void trace_view_store_update_filter(TraceViewStore *store)
 }
 
 void trace_view_store_assign_filters(TraceViewStore *store,
-				     struct filter_task *task_filter,
-				     struct filter_task *hide_tasks)
+				     struct tracecmd_filter_id *task_filter,
+				     struct tracecmd_filter_id *hide_tasks)
 {
 	g_return_if_fail (TRACE_VIEW_IS_LIST (store));
 
 	/* We may pass in the store->task_filter. Don't free it if we do */
 	if (store->task_filter && store->task_filter != task_filter)
-		filter_task_hash_free(store->task_filter);
+		tracecmd_filter_id_hash_free(store->task_filter);
 
 	if (store->hide_tasks && store->hide_tasks != hide_tasks)
-		filter_task_hash_free(store->hide_tasks);
+		tracecmd_filter_id_hash_free(store->hide_tasks);
 
 	if (store->hide_tasks != hide_tasks)
-		store->hide_tasks = filter_task_hash_copy(hide_tasks);
+		store->hide_tasks = tracecmd_filter_id_hash_copy(hide_tasks);
 
 	if (store->task_filter != task_filter)
-		store->task_filter = filter_task_hash_copy(task_filter);
+		store->task_filter = tracecmd_filter_id_hash_copy(task_filter);
 }
 
 /*****************************************************************************

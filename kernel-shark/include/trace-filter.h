@@ -1,21 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #ifndef _TRACE_FILTER_H
 #define _TRACE_FILTER_H
@@ -101,7 +87,7 @@ void trace_filter_event_dialog(struct tracecmd_input *handle,
 			       trace_filter_event_cb_func func,
 			       gpointer data);
 
-void trace_filter_pevent_dialog(struct pevent *pevent,
+void trace_filter_pevent_dialog(struct tep_handle *pevent,
 				gboolean all_events,
 				gchar **systems, gint *events,
 				trace_filter_event_cb_func func,
@@ -146,23 +132,23 @@ void trace_array_add(gint **array, gint *count, gint val);
 int trace_filter_save_events(struct tracecmd_xml_handle *handle,
 			     struct event_filter *filter);
 int trace_filter_save_tasks(struct tracecmd_xml_handle *handle,
-			    struct filter_task *filter);
+			    struct tracecmd_filter_id *filter);
 int trace_filter_load_events(struct event_filter *event_filter,
 			     struct tracecmd_xml_handle *handle,
 			     struct tracecmd_xml_system_node *node);
-int trace_filter_load_task_filter(struct filter_task *filter,
+int trace_filter_load_task_filter(struct tracecmd_filter_id *filter,
 				  struct tracecmd_xml_handle *handle,
 				  struct tracecmd_xml_system_node *node);
 int trace_filter_load_filters(struct tracecmd_xml_handle *handle,
 			      const char *system_name,
-			      struct filter_task *task_filter,
-			      struct filter_task *hide_tasks);
+			      struct tracecmd_filter_id *task_filter,
+			      struct tracecmd_filter_id *hide_tasks);
 int trace_filter_save_filters(struct tracecmd_xml_handle *handle,
 			      const char *system_name,
-			      struct filter_task *task_filter,
-			      struct filter_task *hide_tasks);
+			      struct tracecmd_filter_id *task_filter,
+			      struct tracecmd_filter_id *hide_tasks);
 
-GtkWidget *trace_create_event_list_view(struct pevent *pevent,
+GtkWidget *trace_create_event_list_view(struct tep_handle *pevent,
 					struct event_filter *filter,
 					gboolean all_events, gchar **systems,
 					gint *events);
@@ -171,7 +157,7 @@ gint trace_extract_event_list_view(GtkWidget *event_view,
 				   gchar ***systems,
 				   gint **events);
 int trace_update_event_view(GtkWidget *event_view,
-			    struct pevent *pevent,
+			    struct tep_handle *pevent,
 			    struct event_filter *filter,
 			    gboolean all_events,
 			    gchar **systems, gint *events);

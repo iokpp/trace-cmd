@@ -1,21 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #include <gtk/gtk.h>
 #include <stdlib.h>
@@ -388,26 +374,26 @@ GtkResponseType trace_dialog(GtkWindow *parent, enum trace_dialog_type type,
 
 static void read_raw_events(struct trace_seq *s,
 			    struct event_format *event,
-			    struct pevent_record *record)
+			    struct tep_record *record)
 {
 	struct format_field **fields;
 	int i;
 
-	fields = pevent_event_fields(event);
+	fields = tep_event_fields(event);
 	if (!fields)
 		return;
 
 	for (i = 0; fields[i]; i++) {
 		trace_seq_printf(s, "%s: ", fields[i]->name);
-		pevent_print_field(s, record->data, fields[i]);
+		tep_print_field(s, record->data, fields[i]);
 		trace_seq_putc(s, '\n');
 	}
 
 	free(fields);
 }
 
-void trace_show_record_dialog(GtkWindow *parent, struct pevent *pevent,
-			      struct pevent_record *record, gboolean raw)
+void trace_show_record_dialog(GtkWindow *parent, struct tep_handle *pevent,
+			      struct tep_record *record, gboolean raw)
 {
 	struct event_format *event;
 	struct trace_seq s;
@@ -415,13 +401,13 @@ void trace_show_record_dialog(GtkWindow *parent, struct pevent *pevent,
 
 	trace_seq_init(&s);
 
-	type = pevent_data_type(pevent, record);
-	event = pevent_data_event_from_type(pevent, type);
+	type = tep_data_type(pevent, record);
+	event = tep_data_event_from_type(pevent, type);
 
 	if (raw)
 		read_raw_events(&s, event, record);
 	else
-		pevent_print_event(pevent, &s, record, FALSE);
+		tep_print_event(pevent, &s, record, FALSE);
 
 	if (s.buffer_size) {
 		trace_seq_terminate(&s);

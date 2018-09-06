@@ -1,21 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #include <stdlib.h>
 #include <string.h>
@@ -23,6 +9,7 @@
 #include "trace-graph.h"
 #include "trace-filter.h"
 #include "trace-local.h"
+#include "trace-hash-local.h"
 
 #define RED 0xff
 #define GREEN (0xff<<16)
@@ -30,7 +17,7 @@
 struct task_plot_info {
 	int			pid;
 	struct cpu_data		*cpu_data;
-	struct pevent_record	**last_records;
+	struct tep_record	**last_records;
 	unsigned long long	last_time;
 	unsigned long long	wake_time;
 	unsigned long long	display_wake_time;
@@ -62,21 +49,21 @@ static int hash_cpu(int cpu)
 	return trace_hash(cpu);
 }
 
-static gboolean is_running(struct graph_info *ginfo, struct pevent_record *record)
+static gboolean is_running(struct graph_info *ginfo, struct tep_record *record)
 {
 	unsigned long long val;
 	int id;
 
-	id = pevent_data_type(ginfo->pevent, record);
+	id = tep_data_type(ginfo->pevent, record);
 	if (id != ginfo->event_sched_switch_id)
 		return FALSE;
 
-	pevent_read_number_field(ginfo->event_prev_state, record->data, &val);
+	tep_read_number_field(ginfo->event_prev_state, record->data, &val);
 	return val & ((1 << 11) - 1)? FALSE : TRUE;
 }
 
 static gboolean record_matches_pid(struct graph_info *ginfo,
-				   struct pevent_record *record, int match_pid,
+				   struct tep_record *record, int match_pid,
 				   int *pid, int *sched_pid,
 				   gboolean *is_sched,
 				   gboolean *wakeup)
@@ -86,7 +73,7 @@ static gboolean record_matches_pid(struct graph_info *ginfo,
 	*is_sched = FALSE;
 	*wakeup = FALSE;
 
-	*pid = pevent_data_pid(ginfo->pevent, record);
+	*pid = tep_data_pid(ginfo->pevent, record);
 	*sched_pid = *pid;
 
 	if (trace_graph_check_sched_switch(ginfo, record, sched_pid, &comm)) {
@@ -111,7 +98,7 @@ static gboolean record_matches_pid(struct graph_info *ginfo,
 
 static void set_cpu_to_time(int cpu, struct graph_info *ginfo, unsigned long long time)
 {
-	struct pevent_record *record;
+	struct tep_record *record;
 
 	tracecmd_set_cpu_to_timestamp(ginfo->handle, cpu, time);
 
@@ -140,7 +127,7 @@ static int task_plot_match_time(struct graph_info *ginfo, struct graph_plot *plo
 			       unsigned long long time)
 {
 	struct task_plot_info *task_info = plot->private;
-	struct pevent_record *record = NULL;
+	struct tep_record *record = NULL;
 	gboolean is_wakeup;
 	gboolean is_sched;
 	gboolean match;
@@ -182,7 +169,7 @@ struct offset_cache {
 static struct offset_cache *save_offsets(struct graph_info *ginfo)
 {
 	struct offset_cache *offsets;
-	struct pevent_record *record;
+	struct tep_record *record;
 	int cpu;
 
 	offsets = malloc_or_die(sizeof(*offsets));
@@ -200,7 +187,7 @@ static struct offset_cache *save_offsets(struct graph_info *ginfo)
 
 static void restore_offsets(struct graph_info *ginfo, struct offset_cache *offsets)
 {
-	struct pevent_record *record;
+	struct tep_record *record;
 	int cpu;
 
 	for (cpu = 0; cpu < ginfo->cpus; cpu++) {
@@ -217,10 +204,10 @@ static void restore_offsets(struct graph_info *ginfo, struct offset_cache *offse
 	free(offsets);
 }
 
-static struct pevent_record *
+static struct tep_record *
 find_record(struct graph_info *ginfo, gint pid, guint64 time)
 {
-	struct pevent_record *record = NULL;
+	struct tep_record *record = NULL;
 	gboolean is_wakeup;
 	gboolean is_sched;
 	gboolean match;
@@ -254,7 +241,7 @@ static int task_plot_display_last_event(struct graph_info *ginfo,
 {
 	struct task_plot_info *task_info = plot->private;
 	struct event_format *event;
-	struct pevent_record *record;
+	struct tep_record *record;
 	struct offset_cache *offsets;
 	gboolean is_sched;
 	gboolean is_wakeup;
@@ -299,20 +286,20 @@ static int task_plot_display_last_event(struct graph_info *ginfo,
 			trace_seq_printf(s, "sched_switch\n"
 					 "CPU %d %s-%d\n",
 					 record->cpu,
-					 pevent_data_comm_from_pid(ginfo->pevent, pid),
+					 tep_data_comm_from_pid(ginfo->pevent, pid),
 					 pid);
 		}
 	} else {
 			
 		/* Must have the record we want */
-		type = pevent_data_type(ginfo->pevent, record);
-		event = pevent_data_event_from_type(ginfo->pevent, type);
+		type = tep_data_type(ginfo->pevent, record);
+		event = tep_data_event_from_type(ginfo->pevent, type);
 		if (pid == rec_pid)
 			trace_seq_printf(s, "CPU %d\n%s\n",
 					 record->cpu, event->name);
 		else
 			trace_seq_printf(s, "%s-%d\n%s\n",
-					 pevent_data_comm_from_pid(ginfo->pevent, rec_pid),
+					 tep_data_comm_from_pid(ginfo->pevent, rec_pid),
 					 rec_pid, event->name);
 	}
 	free_record(record);
@@ -325,7 +312,7 @@ static void task_plot_start(struct graph_info *ginfo, struct graph_plot *plot,
 {
 	struct task_plot_info *task_info = plot->private;
 
-	memset(task_info->last_records, 0, sizeof(struct pevent_record *) * ginfo->cpus);
+	memset(task_info->last_records, 0, sizeof(struct tep_record *) * ginfo->cpus);
 
 	task_info->last_time = 0ULL;
 	task_info->last_cpu = -1;
@@ -335,7 +322,7 @@ static void task_plot_start(struct graph_info *ginfo, struct graph_plot *plot,
 }
 
 static gboolean record_is_interrupt(struct graph_info *ginfo,
-				    struct pevent_record *record,
+				    struct tep_record *record,
 				    gboolean check_type)
 {
 	gboolean in_irq;
@@ -343,7 +330,7 @@ static gboolean record_is_interrupt(struct graph_info *ginfo,
 	if (ginfo->no_irqs)
 		return FALSE;
 
-	in_irq = !!(pevent_data_flags(ginfo->pevent, record) &
+	in_irq = !!(tep_data_flags(ginfo->pevent, record) &
 		    (TRACE_FLAG_HARDIRQ | TRACE_FLAG_SOFTIRQ));
 
 	/*
@@ -366,11 +353,11 @@ static gboolean record_is_interrupt(struct graph_info *ginfo,
 
 static void update_last_record(struct graph_info *ginfo,
 			       struct task_plot_info *task_info,
-			       struct pevent_record *record)
+			       struct tep_record *record)
 {
 	struct tracecmd_input *handle = ginfo->handle;
-	struct pevent_record *trecord, *t2record;
-	struct pevent_record *saved;
+	struct tep_record *trecord, *t2record;
+	struct tep_record *saved;
 	unsigned long long ts;
 	int sched_pid;
 	int pid;
@@ -448,11 +435,11 @@ static void update_last_record(struct graph_info *ginfo,
 
 static int task_plot_event(struct graph_info *ginfo,
 			   struct graph_plot *plot,
-			   struct pevent_record *record)
+			   struct tep_record *record)
 {
 	struct task_plot_info *task_info = plot->private;
 	struct plot_info *info = &plot->info;
-	struct pevent_record *next_record;
+	struct tep_record *next_record;
 	gboolean match;
 	gboolean in_irq;
 	int sched_pid;
@@ -618,7 +605,7 @@ static int task_plot_event(struct graph_info *ginfo,
 }
 
 
-static struct pevent_record *
+static struct tep_record *
 task_plot_find_record(struct graph_info *ginfo, struct graph_plot *plot,
 		      unsigned long long time)
 {
@@ -632,12 +619,12 @@ task_plot_find_record(struct graph_info *ginfo, struct graph_plot *plot,
 
 #define MAX_SEARCH 20
 
-static struct pevent_record *
-find_previous_record(struct graph_info *ginfo, struct pevent_record *start_record,
+static struct tep_record *
+find_previous_record(struct graph_info *ginfo, struct tep_record *start_record,
 		     int pid, int cpu)
 {
-	struct pevent_record *last_record = start_record;
-	struct pevent_record *record;
+	struct tep_record *last_record = start_record;
+	struct tep_record *record;
 	gboolean match;
 	gboolean is_sched;
 	gboolean is_wakeup;
@@ -672,11 +659,11 @@ find_previous_record(struct graph_info *ginfo, struct pevent_record *start_recor
 	return record;
 }
 
-static struct pevent_record *
+static struct tep_record *
 get_display_record(struct graph_info *ginfo, int pid, unsigned long long time)
 {
-	struct pevent_record *record;
-	struct pevent_record **records;
+	struct tep_record *record;
+	struct tep_record **records;
 	unsigned long long ts;
 	int next_cpu;
 	int cpu;
@@ -748,8 +735,8 @@ int task_plot_display_info(struct graph_info *ginfo,
 {
 	struct task_plot_info *task_info = plot->private;
 	struct event_format *event;
-	struct pevent_record *record;
-	struct pevent *pevent;
+	struct tep_record *record;
+	struct tep_handle *pevent;
 	unsigned long sec, usec;
 	const char *comm;
 	int cpu;
@@ -764,7 +751,7 @@ int task_plot_display_info(struct graph_info *ginfo,
 
 	pevent = ginfo->pevent;
 
-	pid = pevent_data_pid(ginfo->pevent, record);
+	pid = tep_data_pid(ginfo->pevent, record);
 	cpu = record->cpu;
 
 	convert_nano(record->ts, &sec, &usec);
@@ -772,14 +759,14 @@ int task_plot_display_info(struct graph_info *ginfo,
 	if (record->ts > time - 2/ginfo->resolution &&
 	    record->ts < time + 2/ginfo->resolution) {
 
-		type = pevent_data_type(pevent, record);
-		event = pevent_data_event_from_type(pevent, type);
+		type = tep_data_type(pevent, record);
+		event = tep_data_event_from_type(pevent, type);
 		if (event) {
 			trace_seq_puts(s, event->name);
 			trace_seq_putc(s, '\n');
-			pevent_data_lat_fmt(pevent, s, record);
+			tep_data_lat_fmt(pevent, s, record);
 			trace_seq_putc(s, '\n');
-			pevent_event_info(s, event, record);
+			tep_event_info(s, event, record);
 			trace_seq_putc(s, '\n');
 		} else
 			trace_seq_printf(s, "UNKNOW EVENT %d\n", type);
@@ -791,7 +778,7 @@ int task_plot_display_info(struct graph_info *ginfo,
 		trace_seq_printf(s, " CPU: %03d", cpu);
 
 	if (record_is_interrupt(ginfo, record, TRUE)) {
-		struct pevent_record *next_record;
+		struct tep_record *next_record;
 
 		next_record = tracecmd_peek_data(ginfo->handle, record->cpu);
 		if (record_is_interrupt(ginfo, next_record, FALSE))
@@ -914,13 +901,13 @@ void graph_plot_init_tasks(struct graph_info *ginfo)
 {
 	struct task_plot_info *task_info;
 	char label[100];
-	struct pevent_record *record;
+	struct tep_record *record;
 	int pid;
 
 	/* Just for testing */
 	record = tracecmd_read_cpu_first(ginfo->handle, 0);
 	while (record) {
-		pid = pevent_data_pid(ginfo->pevent, record);
+		pid = tep_data_pid(ginfo->pevent, record);
 		free_record(record);
 		if (pid)
 			break;
@@ -929,7 +916,7 @@ void graph_plot_init_tasks(struct graph_info *ginfo)
 
 	task_info = malloc_or_die(sizeof(*task_info));
 	task_info->last_records =
-		malloc_or_die(sizeof(struct pevent_record *) * ginfo->cpus);
+		malloc_or_die(sizeof(struct tep_record *) * ginfo->cpus);
 	task_info->pid = pid;
 
 	snprintf(label, 100, "TASK %d", pid);
@@ -947,9 +934,9 @@ void graph_plot_task(struct graph_info *ginfo, int pid, int pos)
 
 	task_info = malloc_or_die(sizeof(*task_info));
 	task_info->last_records =
-		malloc_or_die(sizeof(struct pevent_record *) * ginfo->cpus);
+		malloc_or_die(sizeof(struct tep_record *) * ginfo->cpus);
 	task_info->pid = pid;
-	comm = pevent_data_comm_from_pid(ginfo->pevent, pid);
+	comm = tep_data_comm_from_pid(ginfo->pevent, pid);
 
 	len = strlen(comm) + 100;
 	label = malloc_or_die(len);

@@ -7,7 +7,7 @@
 %nodefaultdtor record;
 
 %apply Pointer NONNULL { struct tracecmd_input *handle };
-%apply Pointer NONNULL { struct pevent *pevent };
+%apply Pointer NONNULL { struct tep_handle *pevent };
 %apply Pointer NONNULL { struct format_field * };
 %apply unsigned long long *OUTPUT {unsigned long long *}
 %apply int *OUTPUT {int *}
@@ -31,7 +31,7 @@
 
 %inline %{
 static int python_callback(struct trace_seq *s,
-			   struct pevent_record *record,
+			   struct tep_record *record,
 			   struct event_format *event,
 			   void *context);
 
@@ -68,20 +68,20 @@ void warning(const char *fmt, ...)
 PyObject *convert_pevent(unsigned long pevent)
 {
 	void *pev = (void *)pevent;
-	return SWIG_NewPointerObj(SWIG_as_voidptr(pev), SWIGTYPE_p_pevent, 0);
+	return SWIG_NewPointerObj(SWIG_as_voidptr(pev), SWIGTYPE_p_tep_handle, 0);
 }
 
-void py_pevent_register_event_handler(struct pevent *pevent, int id,
+void py_pevent_register_event_handler(struct tep_handle *pevent, int id,
 				      char *subsys, char *evname,
 				      PyObject *pyfunc)
 {
 	Py_INCREF(pyfunc);
-	pevent_register_event_handler(pevent, id, subsys, evname,
-				      python_callback, pyfunc);
+	tep_register_event_handler(pevent, id, subsys, evname,
+				   python_callback, pyfunc);
 }
 
-static PyObject *py_field_get_stack(struct pevent *pevent,
-				    struct pevent_record *record,
+static PyObject *py_field_get_stack(struct tep_handle *pevent,
+				    struct tep_record *record,
 				    struct event_format *event,
 				    int long_size)
 {
@@ -91,7 +91,7 @@ static PyObject *py_field_get_stack(struct pevent *pevent,
 	const char *func = NULL;
 	unsigned long addr;
 
-	field = pevent_find_any_field(event, "caller");
+	field = tep_find_any_field(event, "caller");
 	if (!field) {
 		PyErr_SetString(PyExc_TypeError,
 				"Event doesn't have caller field");
@@ -102,12 +102,12 @@ static PyObject *py_field_get_stack(struct pevent *pevent,
 
 	for (data += field->offset; data < record->data + record->size;
 	     data += long_size) {
-		addr = pevent_read_number(event->pevent, data, long_size);
+		addr = tep_read_number(event->pevent, data, long_size);
 
 		if ((long_size == 8 && addr == (unsigned long long)-1) ||
 		    ((int)addr == -1))
 			break;
-		func = pevent_find_function(event->pevent, addr);
+		func = tep_find_function(event->pevent, addr);
 		if (PyList_Append(list, PyString_FromString(func))) {
 			Py_DECREF(list);
 			return NULL;
@@ -117,13 +117,13 @@ static PyObject *py_field_get_stack(struct pevent *pevent,
 	return list;
 }
 
-static PyObject *py_field_get_data(struct format_field *f, struct pevent_record *r)
+static PyObject *py_field_get_data(struct format_field *f, struct tep_record *r)
 {
 	if (!strncmp(f->type, "__data_loc ", 11)) {
 		unsigned long long val;
 		int len, offset;
 
-		if (pevent_read_number_field(f, r->data, &val)) {
+		if (tep_read_number_field(f, r->data, &val)) {
 			PyErr_SetString(PyExc_TypeError,
 					"Field is not a valid number");
 			return NULL;
@@ -143,13 +143,13 @@ static PyObject *py_field_get_data(struct format_field *f, struct pevent_record 
 	return PyBuffer_FromMemory((char *)r->data + f->offset, f->size);
 }
 
-static PyObject *py_field_get_str(struct format_field *f, struct pevent_record *r)
+static PyObject *py_field_get_str(struct format_field *f, struct tep_record *r)
 {
 	if (!strncmp(f->type, "__data_loc ", 11)) {
 		unsigned long long val;
 		int offset;
 
-		if (pevent_read_number_field(f, r->data, &val)) {
+		if (tep_read_number_field(f, r->data, &val)) {
 			PyErr_SetString(PyExc_TypeError,
 					"Field is not a valid number");
 			return NULL;
@@ -190,7 +190,7 @@ static PyObject *py_format_get_keys(struct event_format *ef)
 
 %wrapper %{
 static int python_callback(struct trace_seq *s,
-			   struct pevent_record *record,
+			   struct tep_record *record,
 			   struct event_format *event,
 			   void *context)
 {
@@ -203,7 +203,7 @@ static int python_callback(struct trace_seq *s,
 		SWIG_NewPointerObj(SWIG_as_voidptr(s),
 				   SWIGTYPE_p_trace_seq, 0),
 		SWIG_NewPointerObj(SWIG_as_voidptr(record),
-				   SWIGTYPE_p_pevent_record, 0),
+				   SWIGTYPE_p_tep_record, 0),
 		SWIG_NewPointerObj(SWIG_as_voidptr(event),
 				   SWIGTYPE_p_event_format, 0));
 

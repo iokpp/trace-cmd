@@ -1,34 +1,21 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #include <stdlib.h>
 #include <string.h>
 
 #include "trace-graph.h"
 #include "trace-local.h"
+#include "trace-hash-local.h"
 #include "cpu.h"
 
 struct cpu_plot_info {
 	int			cpu;
 	unsigned long long	last_time;
 	int			last_pid;
-	struct pevent_record	*last_record;
+	struct tep_record	*last_record;
 };
 
 static gint hash_pid(gint val)
@@ -47,10 +34,10 @@ static void convert_nano(unsigned long long time, unsigned long *sec,
 	*usec = (time / 1000) % 1000000;
 }
 
-static struct pevent_record *get_record_from_time(struct graph_info *ginfo, int cpu,
-					   unsigned long long time)
+static struct tep_record *get_record_from_time(struct graph_info *ginfo, int cpu,
+					       unsigned long long time)
 {
-	struct pevent_record *record;
+	struct tep_record *record;
 
 	tracecmd_set_cpu_to_timestamp(ginfo->handle, cpu, time);
 	record = tracecmd_read_data(ginfo->handle, cpu);
@@ -66,7 +53,7 @@ static int cpu_plot_match_time(struct graph_info *ginfo, struct graph_plot *plot
 			       unsigned long long time)
 {
 	struct cpu_plot_info *cpu_info = plot->private;
-	struct pevent_record *record;
+	struct tep_record *record;
 	int ret = 0;
 
 	record = get_record_from_time(ginfo, cpu_info->cpu, time);
@@ -87,7 +74,7 @@ static int cpu_plot_match_time(struct graph_info *ginfo, struct graph_plot *plot
  * @is_sched_switch returns 1 on context switch, otherwise 0
  */
 static int filter_record(struct graph_info *ginfo,
-			 struct pevent_record *record,
+			 struct tep_record *record,
 			 int *orig_pid, int *sched_pid,
 			 gboolean *sched_switch)
 {
@@ -97,7 +84,7 @@ static int filter_record(struct graph_info *ginfo,
 	int wake_pid;
 	int filter;
 
-	*orig_pid = pevent_data_pid(ginfo->pevent, record);
+	*orig_pid = tep_data_pid(ginfo->pevent, record);
 
 	filter = trace_graph_filter_on_task(ginfo, *orig_pid);
 
@@ -131,7 +118,7 @@ static int cpu_plot_display_last_event(struct graph_info *ginfo,
 {
 	struct cpu_plot_info *cpu_info = plot->private;
 	struct event_format *event;
-	struct pevent_record *record;
+	struct tep_record *record;
 	int cpu = cpu_info->cpu;
 	unsigned long long offset = 0;
 	gboolean is_sched_switch;
@@ -167,8 +154,8 @@ again:
 		return 0;
 
 	/* Must have the record we want */
-	type = pevent_data_type(ginfo->pevent, record);
-	event = pevent_data_event_from_type(ginfo->pevent, type);
+	type = tep_data_type(ginfo->pevent, record);
+	event = tep_data_event_from_type(ginfo->pevent, type);
 	/* Unlikely that the event was not saved */
 	if (!event)
 		goto again;
@@ -176,7 +163,7 @@ again:
 	if (is_sched_switch)
 		pid = sched_pid;
 	trace_seq_printf(s, "%s-%d\n%s\n",
-			 pevent_data_comm_from_pid(ginfo->pevent, pid),
+			 tep_data_comm_from_pid(ginfo->pevent, pid),
 			 pid, event->name);
 	free_record(record);
 
@@ -205,10 +192,10 @@ static void cpu_plot_start(struct graph_info *ginfo, struct graph_plot *plot,
 
 static void update_last_record(struct graph_info *ginfo,
 			       struct cpu_plot_info *cpu_info,
-			       struct pevent_record *record)
+			       struct tep_record *record)
 {
 	struct tracecmd_input *handle = ginfo->handle;
-	struct pevent_record *trecord;
+	struct tep_record *trecord;
 	int sched_pid;
 	int orig_pid;
 	int is_sched_switch;
@@ -238,7 +225,7 @@ static void update_last_record(struct graph_info *ginfo,
 
 static int cpu_plot_event(struct graph_info *ginfo,
 			  struct graph_plot *plot,
-			  struct pevent_record *record)
+			  struct tep_record *record)
 {
 	struct cpu_plot_info *cpu_info = plot->private;
 	struct plot_info *info = &plot->info;
@@ -323,10 +310,10 @@ static int cpu_plot_event(struct graph_info *ginfo,
 	return ret;
 }
 
-static struct pevent_record *
+static struct tep_record *
 find_record_on_cpu(struct graph_info *ginfo, gint cpu, guint64 time)
 {
-	struct pevent_record *record = NULL;
+	struct tep_record *record = NULL;
 	guint64 offset = 0;
 
 	tracecmd_set_cpu_to_timestamp(ginfo->handle, cpu, time);
@@ -348,7 +335,7 @@ find_record_on_cpu(struct graph_info *ginfo, gint cpu, guint64 time)
 	return record;
 }
 
-static struct pevent_record *
+static struct tep_record *
 cpu_plot_find_record(struct graph_info *ginfo, struct graph_plot *plot,
 		     unsigned long long time)
 {
@@ -367,9 +354,9 @@ int cpu_plot_display_info(struct graph_info *ginfo,
 {
 	struct cpu_plot_info *cpu_info = plot->private;
 	struct event_format *event;
-	struct pevent_record *record;
-	struct pevent_record *next_record;
-	struct pevent *pevent;
+	struct tep_record *record;
+	struct tep_record *next_record;
+	struct tep_handle *pevent;
 	unsigned long sec, usec;
 	const char *comm;
 	int type;
@@ -386,8 +373,8 @@ int cpu_plot_display_info(struct graph_info *ginfo,
 		record = tracecmd_read_cpu_last(ginfo->handle, cpu);
 		if (record && record->ts < time) {
 			if (!trace_graph_check_sched_switch(ginfo, record, &pid, &comm)) {
-				pid = pevent_data_pid(ginfo->pevent, record);
-				comm = pevent_data_comm_from_pid(ginfo->pevent, pid);
+				pid = tep_data_pid(ginfo->pevent, record);
+				comm = tep_data_comm_from_pid(ginfo->pevent, pid);
 			}
 
 			convert_nano(record->ts, &sec, &usec);
@@ -406,20 +393,20 @@ int cpu_plot_display_info(struct graph_info *ginfo,
 
 	pevent = ginfo->pevent;
 
-	pid = pevent_data_pid(ginfo->pevent, record);
-	comm = pevent_data_comm_from_pid(ginfo->pevent, pid);
+	pid = tep_data_pid(ginfo->pevent, record);
+	comm = tep_data_comm_from_pid(ginfo->pevent, pid);
 
 	if (record->ts > time - 2/ginfo->resolution &&
 	    record->ts < time + 2/ginfo->resolution) {
 
-		type = pevent_data_type(pevent, record);
-		event = pevent_data_event_from_type(pevent, type);
+		type = tep_data_type(pevent, record);
+		event = tep_data_event_from_type(pevent, type);
 		if (event) {
 			trace_seq_puts(s, event->name);
 			trace_seq_putc(s, '\n');
-			pevent_data_lat_fmt(pevent, s, record);
+			tep_data_lat_fmt(pevent, s, record);
 			trace_seq_putc(s, '\n');
-			pevent_event_info(s, event, record);
+			tep_event_info(s, event, record);
 			trace_seq_putc(s, '\n');
 		} else
 			trace_seq_printf(s, "UNKNOW EVENT %d\n", type);

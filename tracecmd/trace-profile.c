@@ -1,21 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2014 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 
 /** FIXME: Convert numbers based on machine and file */
@@ -28,6 +14,8 @@
 #endif
 #include "trace-local.h"
 #include "trace-hash.h"
+#include "trace-hash-local.h"
+#include "list.h"
 
 #include <linux/time64.h>
 
@@ -63,7 +51,7 @@ struct event_data;
 typedef void (*event_data_print)(struct trace_seq *s, struct event_hash *hash);
 typedef int (*handle_event_func)(struct handle_data *h, unsigned long long pid,
 				 struct event_data *data,
-				 struct pevent_record *record, int cpu);
+				 struct tep_record *record, int cpu);
 
 enum event_data_type {
 	EVENT_TYPE_UNDEFINED,
@@ -117,7 +105,7 @@ struct stack_data {
 struct stack_holder {
 	unsigned long		size;
 	void			*caller;
-	struct pevent_record	*record;
+	struct tep_record	*record;
 };
 
 struct start_data {
@@ -170,7 +158,7 @@ struct task_data {
 	struct task_data	*proxy;
 	struct start_data	*last_start;
 	struct event_hash	*last_event;
-	struct pevent_record	*last_stack;
+	struct tep_record	*last_stack;
 	struct handle_data	*handle;
 	struct group_data	*group;
 };
@@ -187,7 +175,7 @@ struct sched_switch_data {
 struct handle_data {
 	struct handle_data	*next;
 	struct tracecmd_input	*handle;
-	struct pevent		*pevent;
+	struct tep_handle	*pevent;
 
 	struct trace_hash	events;
 	struct trace_hash	group_hash;
@@ -223,7 +211,7 @@ void trace_profile_set_merge_like_comms(void)
 
 static struct start_data *
 add_start(struct task_data *task,
-	  struct event_data *event_data, struct pevent_record *record,
+	  struct event_data *event_data, struct tep_record *record,
 	  unsigned long long search_val, unsigned long long val)
 {
 	struct start_data *start;
@@ -544,7 +532,7 @@ static int match_group(struct trace_hash_item *item, void *data)
 
 static void
 add_task_comm(struct task_data *task, struct format_field *field,
-	      struct pevent_record *record)
+	      struct tep_record *record)
 {
 	const char *comm;
 
@@ -560,7 +548,7 @@ add_task_comm(struct task_data *task, struct format_field *field,
 
 /* Account for tasks that don't have starts */
 static void account_task(struct task_data *task, struct event_data *event_data,
-			 struct pevent_record *record)
+			 struct tep_record *record)
 {
 	struct event_data_match edata;
 	struct event_hash *event_hash;
@@ -575,8 +563,8 @@ static void account_task(struct task_data *task, struct event_data *event_data,
 	 * stack traces on this event.
 	 */
 	if (event_data->pid_field) {
-		pevent_read_number_field(event_data->pid_field,
-					 record->data, &pid);
+		tep_read_number_field(event_data->pid_field,
+				      record->data, &pid);
 		proxy = task;
 		task = find_task(task->handle, pid);
 		if (!task)
@@ -589,12 +577,12 @@ static void account_task(struct task_data *task, struct event_data *event_data,
 	 * if the start_field is defined, use that for search_val.
 	 */
 	if (event_data->data_field) {
-		pevent_read_number_field(event_data->data_field,
-					 record->data, &val);
+		tep_read_number_field(event_data->data_field,
+				      record->data, &val);
 	}
 	if (event_data->start_match_field) {
-		pevent_read_number_field(event_data->start_match_field,
-					 record->data, &search_val);
+		tep_read_number_field(event_data->start_match_field,
+				      record->data, &search_val);
 	}
 
 	edata.event_data = event_data;
@@ -613,7 +601,7 @@ static void account_task(struct task_data *task, struct event_data *event_data,
 
 static struct task_data *
 find_event_task(struct handle_data *h, struct event_data *event_data,
-		struct pevent_record *record, unsigned long long pid)
+		struct tep_record *record, unsigned long long pid)
 {
 	if (event_data->global) {
 		if (event_data->migrate)
@@ -624,14 +612,14 @@ find_event_task(struct handle_data *h, struct event_data *event_data,
 
 	/* If pid_field is defined, use that to find the task */
 	if (event_data->pid_field)
-		pevent_read_number_field(event_data->pid_field,
-					 record->data, &pid);
+		tep_read_number_field(event_data->pid_field,
+				      record->data, &pid);
 	return find_task(h, pid);
 }
 
 static struct task_data *
 handle_end_event(struct handle_data *h, struct event_data *event_data,
-		 struct pevent_record *record, int pid)
+		 struct tep_record *record, int pid)
 {
 	struct event_hash *event_hash;
 	struct task_data *task;
@@ -641,8 +629,8 @@ handle_end_event(struct handle_data *h, struct event_data *event_data,
 	if (!task)
 		return NULL;
 
-	pevent_read_number_field(event_data->start_match_field, record->data,
-				 &val);
+	tep_read_number_field(event_data->start_match_field, record->data,
+			      &val);
 	event_hash = find_and_update_start(task, event_data->start, record->ts, val);
 	task->last_start = NULL;
 	task->last_event = event_hash;
@@ -652,7 +640,7 @@ handle_end_event(struct handle_data *h, struct event_data *event_data,
 
 static struct task_data *
 handle_start_event(struct handle_data *h, struct event_data *event_data,
-		   struct pevent_record *record, unsigned long long pid)
+		   struct tep_record *record, unsigned long long pid)
 {
 	struct start_data *start;
 	struct task_data *task;
@@ -662,7 +650,7 @@ handle_start_event(struct handle_data *h, struct event_data *event_data,
 	if (!task)
 		return NULL;
 
-	pevent_read_number_field(event_data->end_match_field, record->data,
+	tep_read_number_field(event_data->end_match_field, record->data,
 				 &val);
 	start = add_start(task, event_data, record, val, val);
 	if (!start) {
@@ -679,7 +667,7 @@ handle_start_event(struct handle_data *h, struct event_data *event_data,
 static int handle_event_data(struct handle_data *h,
 			     unsigned long long pid,
 			     struct event_data *event_data,
-			     struct pevent_record *record, int cpu)
+			     struct tep_record *record, int cpu)
 {
 	struct task_data *task = NULL;
 
@@ -746,14 +734,14 @@ find_event_data(struct handle_data *h, int id)
 }
 
 static void trace_profile_record(struct tracecmd_input *handle,
-				struct pevent_record *record)
+				 struct tep_record *record)
 {
 	static struct handle_data *last_handle;
-	struct pevent_record *stack_record;
+	struct tep_record *stack_record;
 	struct event_data *event_data;
 	struct task_data *task;
 	struct handle_data *h;
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 	unsigned long long pid;
 	int cpu = record->cpu;
 	int id;
@@ -775,7 +763,7 @@ static void trace_profile_record(struct tracecmd_input *handle,
 
 	pevent = h->pevent;
 
-	id = pevent_data_type(pevent, record);
+	id = tep_data_type(pevent, record);
 
 	event_data = find_event_data(h, id);
 
@@ -784,7 +772,7 @@ static void trace_profile_record(struct tracecmd_input *handle,
 
 
 	/* Get this current PID */
-	pevent_read_number_field(h->common_pid, record->data, &pid);
+	tep_read_number_field(h->common_pid, record->data, &pid);
 
 	task = find_task(h, pid);
 	if (!task)
@@ -810,12 +798,12 @@ add_event(struct handle_data *h, const char *system, const char *event_name,
 	struct event_format *event;
 	struct event_data *event_data;
 
-	event = pevent_find_event_by_name(h->pevent, system, event_name);
+	event = tep_find_event_by_name(h->pevent, system, event_name);
 	if (!event)
 		return NULL;
 
 	if (!h->common_pid) {
-		h->common_pid = pevent_find_common_field(event, "common_pid");
+		h->common_pid = tep_find_common_field(event, "common_pid");
 		if (!h->common_pid)
 			die("No 'common_pid' found in event");
 	}
@@ -846,20 +834,20 @@ mate_events(struct handle_data *h, struct event_data *start,
 	end->start = start;
 
 	if (pid_field) {
-		start->pid_field = pevent_find_field(start->event, pid_field);
+		start->pid_field = tep_find_field(start->event, pid_field);
 		if (!start->pid_field)
 			die("Event: %s does not have field %s",
 			    start->event->name, pid_field);
 	}
 
 	/* Field to match with end */
-	start->end_match_field = pevent_find_field(start->event, end_match_field);
+	start->end_match_field = tep_find_field(start->event, end_match_field);
 	if (!start->end_match_field)
 		die("Event: %s does not have field %s",
 		    start->event->name, end_match_field);
 
 	/* Field to match with start */
-	end->start_match_field = pevent_find_field(end->event, start_match_field);
+	end->start_match_field = tep_find_field(end->event, start_match_field);
 	if (!end->start_match_field)
 		die("Event: %s does not have field %s",
 		    end->event->name, start_match_field);
@@ -916,8 +904,8 @@ static void func_print(struct trace_seq *s, struct event_hash *event_hash)
 {
 	const char *func;
 
-	func = pevent_find_function(event_hash->event_data->event->pevent,
-				    event_hash->val);
+	func = tep_find_function(event_hash->event_data->event->pevent,
+				 event_hash->val);
 	if (func)
 		trace_seq_printf(s, "func: %s()", func);
 	else
@@ -1001,7 +989,7 @@ static void sched_switch_print(struct trace_seq *s, struct event_hash *event_has
 static int handle_sched_switch_event(struct handle_data *h,
 				     unsigned long long pid,
 				     struct event_data *event_data,
-				     struct pevent_record *record, int cpu)
+				     struct tep_record *record, int cpu)
 {
 	struct task_data *task;
 	unsigned long long prev_pid;
@@ -1010,18 +998,18 @@ static int handle_sched_switch_event(struct handle_data *h,
 	struct start_data *start;
 
 	/* pid_field holds prev_pid, data_field holds prev_state */
-	pevent_read_number_field(event_data->pid_field,
-				 record->data, &prev_pid);
+	tep_read_number_field(event_data->pid_field,
+			      record->data, &prev_pid);
 
-	pevent_read_number_field(event_data->data_field,
+	tep_read_number_field(event_data->data_field,
 				 record->data, &prev_state);
 
 	/* only care about real states */
 	prev_state &= TASK_STATE_MAX - 1;
 
 	/* end_match_field holds next_pid */
-	pevent_read_number_field(event_data->end_match_field,
-				 record->data, &next_pid);
+	tep_read_number_field(event_data->end_match_field,
+			      record->data, &next_pid);
 
 	task = find_task(h, prev_pid);
 	if (!task)
@@ -1066,7 +1054,7 @@ static int handle_sched_switch_event(struct handle_data *h,
 static int handle_stacktrace_event(struct handle_data *h,
 				   unsigned long long pid,
 				   struct event_data *event_data,
-				   struct pevent_record *record, int cpu)
+				   struct tep_record *record, int cpu)
 {
 	struct task_data *orig_task;
 	struct task_data *proxy;
@@ -1136,7 +1124,7 @@ static int handle_stacktrace_event(struct handle_data *h,
 static int handle_fgraph_entry_event(struct handle_data *h,
 				    unsigned long long pid,
 				    struct event_data *event_data,
-				    struct pevent_record *record, int cpu)
+				    struct tep_record *record, int cpu)
 {
 	unsigned long long size;
 	struct start_data *start;
@@ -1175,7 +1163,7 @@ static int handle_fgraph_entry_event(struct handle_data *h,
 static int handle_fgraph_exit_event(struct handle_data *h,
 				    unsigned long long pid,
 				    struct event_data *event_data,
-				    struct pevent_record *record, int cpu)
+				    struct tep_record *record, int cpu)
 {
 	struct task_data *task;
 
@@ -1191,15 +1179,15 @@ static int handle_fgraph_exit_event(struct handle_data *h,
 static int handle_process_exec(struct handle_data *h,
 			       unsigned long long pid,
 			       struct event_data *event_data,
-			       struct pevent_record *record, int cpu)
+			       struct tep_record *record, int cpu)
 {
 	struct task_data *task;
 	unsigned long long val;
 
 	/* Task has execed, remove the comm for it */
 	if (event_data->data_field) {
-		pevent_read_number_field(event_data->data_field,
-					 record->data, &val);
+		tep_read_number_field(event_data->data_field,
+				      record->data, &val);
 		pid = val;
 	}
 
@@ -1216,7 +1204,7 @@ static int handle_process_exec(struct handle_data *h,
 static int handle_sched_wakeup_event(struct handle_data *h,
 				     unsigned long long pid,
 				     struct event_data *event_data,
-				     struct pevent_record *record, int cpu)
+				     struct tep_record *record, int cpu)
 {
 	struct task_data *proxy;
 	struct task_data *task = NULL;
@@ -1229,16 +1217,16 @@ static int handle_sched_wakeup_event(struct handle_data *h,
 
 	/* If present, data_field holds "success" */
 	if (event_data->data_field) {
-		pevent_read_number_field(event_data->data_field,
-					 record->data, &success);
+		tep_read_number_field(event_data->data_field,
+				      record->data, &success);
 
 		/* If not a successful wakeup, ignore this */
 		if (!success)
 			return 0;
 	}
 
-	pevent_read_number_field(event_data->pid_field,
-				 record->data, &pid);
+	tep_read_number_field(event_data->pid_field,
+			      record->data, &pid);
 
 	task = find_task(h, pid);
 	if (!task)
@@ -1279,7 +1267,7 @@ static int handle_sched_wakeup_event(struct handle_data *h,
 void trace_init_profile(struct tracecmd_input *handle, struct hook_list *hook,
 			int global)
 {
-	struct pevent *pevent = tracecmd_get_pevent(handle);
+	struct tep_handle *pevent = tracecmd_get_pevent(handle);
 	struct event_format **events;
 	struct format_field **fields;
 	struct handle_data *h;
@@ -1384,7 +1372,7 @@ void trace_init_profile(struct tracecmd_input *handle, struct hook_list *hook,
 	if (stacktrace_event) {
 		stacktrace_event->handle_event = handle_stacktrace_event;
 
-		stacktrace_event->data_field = pevent_find_field(stacktrace_event->event,
+		stacktrace_event->data_field = tep_find_field(stacktrace_event->event,
 							    "caller");
 		if (!stacktrace_event->data_field)
 			die("Event: %s does not have field caller",
@@ -1393,25 +1381,25 @@ void trace_init_profile(struct tracecmd_input *handle, struct hook_list *hook,
 
 	if (process_exec) {
 		process_exec->handle_event = handle_process_exec;
-		process_exec->data_field = pevent_find_field(process_exec->event,
+		process_exec->data_field = tep_find_field(process_exec->event,
 							     "old_pid");
 	}
 
 	if (sched_switch) {
 		sched_switch->handle_event = handle_sched_switch_event;
-		sched_switch->data_field = pevent_find_field(sched_switch->event,
+		sched_switch->data_field = tep_find_field(sched_switch->event,
 							     "prev_state");
 		if (!sched_switch->data_field)
 			die("Event: %s does not have field prev_state",
 			    sched_switch->event->name);
 
-		h->switch_prev_comm = pevent_find_field(sched_switch->event,
+		h->switch_prev_comm = tep_find_field(sched_switch->event,
 							"prev_comm");
 		if (!h->switch_prev_comm)
 			die("Event: %s does not have field prev_comm",
 			    sched_switch->event->name);
 
-		h->switch_next_comm = pevent_find_field(sched_switch->event,
+		h->switch_next_comm = tep_find_field(sched_switch->event,
 							"next_comm");
 		if (!h->switch_next_comm)
 			die("Event: %s does not have field next_comm",
@@ -1428,10 +1416,10 @@ void trace_init_profile(struct tracecmd_input *handle, struct hook_list *hook,
 		sched_wakeup->handle_event = handle_sched_wakeup_event;
 
 		/* The 'success' field may or may not be present */
-		sched_wakeup->data_field = pevent_find_field(sched_wakeup->event,
+		sched_wakeup->data_field = tep_find_field(sched_wakeup->event,
 							     "success");
 
-		h->wakeup_comm = pevent_find_field(sched_wakeup->event, "comm");
+		h->wakeup_comm = tep_find_field(sched_wakeup->event, "comm");
 		if (!h->wakeup_comm)
 			die("Event: %s does not have field comm",
 			    sched_wakeup->event->name);
@@ -1470,7 +1458,7 @@ void trace_init_profile(struct tracecmd_input *handle, struct hook_list *hook,
 		syscall_exit->print_func = syscall_print;
 	}
 
-	events = pevent_list_events(pevent, EVENT_SORT_ID);
+	events = tep_list_events(pevent, EVENT_SORT_ID);
 	if (!events)
 		die("malloc");
 
@@ -1478,7 +1466,7 @@ void trace_init_profile(struct tracecmd_input *handle, struct hook_list *hook,
 	event_data = add_event(h, "ftrace", "function", EVENT_TYPE_FUNC);
 	if (event_data) {
 		event_data->data_field =
-			pevent_find_field(event_data->event, "ip");
+			tep_find_field(event_data->event, "ip");
 	}
 
 	/* Add any user defined hooks */
@@ -1509,7 +1497,7 @@ void trace_init_profile(struct tracecmd_input *handle, struct hook_list *hook,
 		event_data = add_event(h, events[i]->system, events[i]->name,
 				       EVENT_TYPE_UNDEFINED);
 
-		fields = pevent_event_fields(events[i]);
+		fields = tep_event_fields(events[i]);
 		if (!fields)
 			die("malloc");
 
@@ -1530,9 +1518,9 @@ void trace_init_profile(struct tracecmd_input *handle, struct hook_list *hook,
 	warning("Failed handle allocations");
 }
 
-static void output_event_stack(struct pevent *pevent, struct stack_data *stack)
+static void output_event_stack(struct tep_handle *pevent, struct stack_data *stack)
 {
-	int longsize = pevent_get_long_size(pevent);
+	int longsize = tep_get_long_size(pevent);
 	unsigned long long val;
 	const char *func;
 	unsigned long long stop = -1ULL;
@@ -1567,7 +1555,7 @@ static void output_event_stack(struct pevent *pevent, struct stack_data *stack)
 		}
 		if (val == stop)
 			break;
-		func = pevent_find_function(pevent, val);
+		func = tep_find_function(pevent, val);
 		if (func)
 			printf("       => %s (0x%llx)\n", func, val);
 		else
@@ -1784,19 +1772,19 @@ static void print_indent(int level, unsigned long long mask)
 	}
 }
 
-static void print_chain_func(struct pevent *pevent, struct stack_chain *chain)
+static void print_chain_func(struct tep_handle *pevent, struct stack_chain *chain)
 {
 	unsigned long long val = chain->val;
 	const char *func;
 
-	func = pevent_find_function(pevent, val);
+	func = tep_find_function(pevent, val);
 	if (func)
 		printf("%s (0x%llx)\n", func, val);
 	else
 		printf("0x%llx\n", val);
 }
 
-static void output_chain(struct pevent *pevent, struct stack_chain *chain, int level,
+static void output_chain(struct tep_handle *pevent, struct stack_chain *chain, int level,
 			 int nr_chains, unsigned long long *mask)
 {
 	struct stack_chain *child;
@@ -1890,7 +1878,7 @@ static int compare_stacks(const void *a, const void *b)
 	return 0;
 }
 
-static void output_stacks(struct pevent *pevent, struct trace_hash *stack_hash)
+static void output_stacks(struct tep_handle *pevent, struct trace_hash *stack_hash)
 {
 	struct trace_hash_item **bucket;
 	struct trace_hash_item *item;
@@ -1898,7 +1886,7 @@ static void output_stacks(struct pevent *pevent, struct trace_hash *stack_hash)
 	struct stack_chain *chain;
 	unsigned long long mask = 0;
 	int nr_chains;
-	int longsize = pevent_get_long_size(pevent);
+	int longsize = tep_get_long_size(pevent);
 	int nr_stacks;
 	int i;
 
@@ -1939,7 +1927,7 @@ static void output_stacks(struct pevent *pevent, struct trace_hash *stack_hash)
 static void output_event(struct event_hash *event_hash)
 {
 	struct event_data *event_data = event_hash->event_data;
-	struct pevent *pevent = event_data->event->pevent;
+	struct tep_handle *pevent = event_data->event->pevent;
 	struct trace_seq s;
 
 	trace_seq_init(&s);
@@ -2029,7 +2017,7 @@ static void output_task(struct handle_data *h, struct task_data *task)
 	if (task->comm)
 		comm = task->comm;
 	else
-		comm = pevent_data_comm_from_pid(h->pevent, task->pid);
+		comm = tep_data_comm_from_pid(h->pevent, task->pid);
 
 	if (task->pid < 0)
 		printf("%s\n", task->comm);

@@ -1,21 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #include <gtk/gtk.h>
 #include <getopt.h>
@@ -44,13 +30,13 @@
 static char *input_file;
 
 struct trace_tree_info {
-	struct tracecmd_input	*handle;
-	GtkWidget		*trace_tree;
-	GtkWidget		*spin;
-	gint			filter_enabled;
-	gint			filter_task_selected;
-	struct filter_task	*task_filter;
-	struct filter_task	*hide_tasks;
+	struct tracecmd_input		*handle;
+	GtkWidget			*trace_tree;
+	GtkWidget			*spin;
+	gint				filter_enabled;
+	gint				filter_task_selected;
+	struct tracecmd_filter_id	*task_filter;
+	struct tracecmd_filter_id	*hide_tasks;
 };
 
 void usage(char *prog)
@@ -228,8 +214,8 @@ filter_list_clicked (gpointer data)
 {
 	struct trace_tree_info *info = data;
 
-	if (!filter_task_count(info->task_filter) &&
-	    !filter_task_count(info->hide_tasks))
+	if (!tracecmd_filter_task_count(info->task_filter) &&
+	    !tracecmd_filter_task_count(info->hide_tasks))
 		return;
 
 	info->filter_enabled ^= 1;
@@ -243,17 +229,17 @@ filter_list_clicked (gpointer data)
 }
 
 static void update_task_filter(struct trace_tree_info *info,
-			       struct filter_task *filter)
+			       struct tracecmd_filter_id *filter)
 {
-	struct filter_task_item *task;
+	struct tracecmd_filter_id_item *task;
 	gint pid = info->filter_task_selected;
 
-	task = filter_task_find_pid(filter, pid);
+	task = tracecmd_filter_id_find(filter, pid);
 
 	if (task)
-		filter_task_remove_pid(filter, pid);
+		tracecmd_filter_id_remove(filter, pid);
 	else
-		filter_task_add_pid(filter, pid);
+		tracecmd_filter_id_add(filter, pid);
 
 	if (info->filter_enabled)
 		trace_view_update_filters(info->trace_tree,
@@ -315,8 +301,8 @@ do_tree_popup(GtkWidget *widget, GdkEventButton *event, gpointer data)
 	static GtkWidget *menu_filter_clear_tasks;
 	static GtkWidget *menu_display_event;
 	static GtkWidget *menu_display_raw_event;
-	struct pevent *pevent;
-	struct pevent_record *record;
+	struct tep_handle *pevent;
+	struct tep_record *record;
 	TraceViewRecord *vrec;
 	GtkTreeModel *model;
 	const char *comm;
@@ -391,15 +377,15 @@ do_tree_popup(GtkWidget *widget, GdkEventButton *event, gpointer data)
 
 		if (record) {
 			pevent = tracecmd_get_pevent(info->handle);
-			pid = pevent_data_pid(pevent, record);
-			comm = pevent_data_comm_from_pid(pevent, pid);
+			pid = tep_data_pid(pevent, record);
+			comm = tep_data_comm_from_pid(pevent, pid);
 
 			len = strlen(comm) + 50;
 
 			text = g_malloc(len);
 			g_assert(text);
 
-			if (filter_task_find_pid(info->task_filter, pid))
+			if (tracecmd_filter_id_find(info->task_filter, pid))
 				snprintf(text, len, "Remove %s-%d from filter", comm, pid);
 			else
 				snprintf(text, len, "Add %s-%d to filter", comm, pid);
@@ -409,7 +395,7 @@ do_tree_popup(GtkWidget *widget, GdkEventButton *event, gpointer data)
 			gtk_menu_item_set_label(GTK_MENU_ITEM(menu_filter_add_task),
 						text);
 
-			if (filter_task_find_pid(info->hide_tasks, pid))
+			if (tracecmd_filter_id_find(info->hide_tasks, pid))
 				snprintf(text, len, "Show %s-%d", comm, pid);
 			else
 				snprintf(text, len, "Hide %s-%d", comm, pid);
@@ -442,8 +428,8 @@ do_tree_popup(GtkWidget *widget, GdkEventButton *event, gpointer data)
 		gtk_menu_item_set_label(GTK_MENU_ITEM(menu_filter_enable),
 					"Enable List Filter");
 
-	if (filter_task_count(info->task_filter) ||
-	    filter_task_count(info->hide_tasks)) {
+	if (tracecmd_filter_task_count(info->task_filter) ||
+	    tracecmd_filter_task_count(info->hide_tasks)) {
 		gtk_widget_set_sensitive(menu_filter_clear_tasks, TRUE);
 		gtk_widget_set_sensitive(menu_filter_enable, TRUE);
 	} else {
@@ -519,8 +505,8 @@ void trace_view(int argc, char **argv)
 
 	memset(&tree_info, 0, sizeof(tree_info));
 	tree_info.handle = handle;
-	tree_info.task_filter = filter_task_hash_alloc();
-	tree_info.hide_tasks = filter_task_hash_alloc();
+	tree_info.task_filter = tracecmd_filter_id_hash_alloc();
+	tree_info.hide_tasks = tracecmd_filter_id_hash_alloc();
 
 	/* --- Main window --- */
 

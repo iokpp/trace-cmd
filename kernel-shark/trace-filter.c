@@ -1,21 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #include <gtk/gtk.h>
 #include <stdlib.h>
@@ -88,7 +74,7 @@ void trace_array_add(gint **array, gint *count, gint val)
 /* --- event info box --- */
 
 struct event_combo_info {
-	struct pevent		*pevent;
+	struct tep_handle	*pevent;
 	GtkWidget		*event_combo;
 	GtkWidget		*op_combo;
 	GtkWidget		*field_combo;
@@ -97,7 +83,7 @@ struct event_combo_info {
 
 static GtkTreeModel *create_event_combo_model(gpointer data)
 {
-	struct pevent *pevent = data;
+	struct tep_handle *pevent = data;
 	GtkTreeStore *tree;
 	GtkTreeIter sys_iter;
 	GtkTreeIter iter;
@@ -106,7 +92,7 @@ static GtkTreeModel *create_event_combo_model(gpointer data)
 	const char *last_sys = NULL;
 	int i;
 
-	events = pevent_list_events(pevent, EVENT_SORT_SYSTEM);
+	events = tep_list_events(pevent, EVENT_SORT_SYSTEM);
 	if (!events)
 		return NULL;
 
@@ -156,7 +142,7 @@ static GtkTreeModel *create_op_combo_model(gpointer data)
 
 static GtkTreeModel *create_field_combo_model(gpointer data)
 {
-	struct pevent *pevent = data;
+	struct tep_handle *pevent = data;
 	GtkListStore *list;
 	GtkTreeIter iter;
 	struct event_format **events;
@@ -164,14 +150,14 @@ static GtkTreeModel *create_field_combo_model(gpointer data)
 	struct format_field *field;
 	int i;
 
-	events = pevent_list_events(pevent, EVENT_SORT_SYSTEM);
+	events = tep_list_events(pevent, EVENT_SORT_SYSTEM);
 	if (!events)
 		return NULL;
 
 	list = gtk_list_store_new(1, G_TYPE_STRING);
 
 	/* use any event for common fields */
-	fields = pevent_event_common_fields(events[0]);
+	fields = tep_event_common_fields(events[0]);
 
 	for (i = 0; fields[i]; i++) {
 		field = fields[i];
@@ -186,7 +172,7 @@ static GtkTreeModel *create_field_combo_model(gpointer data)
 	return GTK_TREE_MODEL(list);
 }
 
-static void update_field_combo(struct pevent *pevent,
+static void update_field_combo(struct tep_handle *pevent,
 			       GtkWidget *combo,
 			       const char *system,
 			       const char *event_name)
@@ -208,12 +194,12 @@ static void update_field_combo(struct pevent *pevent,
 		return;
 
 	if (event_name) {
-		event = pevent_find_event_by_name(pevent, system, event_name);
+		event = tep_find_event_by_name(pevent, system, event_name);
 		if (!event)
 			return;
 	} else {
 		/* use any event */
-		events = pevent_list_events(pevent, EVENT_SORT_SYSTEM);
+		events = tep_list_events(pevent, EVENT_SORT_SYSTEM);
 		if (!events)
 			return;
 		event = events[0];
@@ -229,7 +215,7 @@ static void update_field_combo(struct pevent *pevent,
 		;
 
 	/* always load the common fields first */
-	fields = pevent_event_common_fields(event);
+	fields = tep_event_common_fields(event);
 	for (i = 0; fields[i]; i++) {
 		field = fields[i];
 		gtk_list_store_append(list, &iter);
@@ -241,7 +227,7 @@ static void update_field_combo(struct pevent *pevent,
 
 	/* Now add event specific events */
 	if (event_name) {
-		fields = pevent_event_fields(event);
+		fields = tep_event_fields(event);
 		for (i = 0; fields[i]; i++) {
 			field = fields[i];
 			gtk_list_store_append(list, &iter);
@@ -466,8 +452,8 @@ static gint *get_event_ids(GtkTreeView *treeview)
 }
 
 static GtkTreeModel *
-create_tree_filter_model(struct pevent *pevent,
-		       struct event_filter *event_filter)
+create_tree_filter_model(struct tep_handle *pevent,
+			 struct event_filter *event_filter)
 {
 	GtkTreeStore *treestore;
 	GtkTreeIter iter_events;
@@ -479,12 +465,12 @@ create_tree_filter_model(struct pevent *pevent,
 				       G_TYPE_STRING, G_TYPE_STRING,
 				       G_TYPE_INT);
 
-	events = pevent_list_events(pevent, EVENT_SORT_SYSTEM);
+	events = tep_list_events(pevent, EVENT_SORT_SYSTEM);
 	if (!events)
 		return GTK_TREE_MODEL(treestore);
 
 	for (i = 0; events[i]; i++) {
-		str = pevent_filter_make_string(event_filter, events[i]->id);
+		str = tep_filter_make_string(event_filter, events[i]->id);
 		if (!str)
 			continue;
 
@@ -552,7 +538,7 @@ static void adv_filter_cursor_changed(GtkTreeView *treeview, gpointer data)
 }
 
 static GtkWidget *
-create_adv_filter_view(struct pevent *pevent,
+create_adv_filter_view(struct tep_handle *pevent,
 		       struct event_filter *event_filter)
 {
 	GtkTreeViewColumn *col;
@@ -634,7 +620,7 @@ void trace_adv_filter_dialog(struct tracecmd_input *handle,
 			       gpointer data)
 {
 	struct event_combo_info combo_info;
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 	GtkWidget *dialog;
 	GtkWidget *hbox;
 	GtkWidget *label;
@@ -774,7 +760,7 @@ static void get_tasks(GtkTreeView *treeview,
 }
 
 static GtkTreeModel *
-create_task_model(struct pevent *pevent,
+create_task_model(struct tep_handle *pevent,
 		  gint *tasks,
 		  gint *selected)
 {
@@ -823,7 +809,7 @@ create_task_model(struct pevent *pevent,
 
 	for (i = 0; tasks[i] >= 0; i++) {
 
-		comm = pevent_data_comm_from_pid(pevent, tasks[i]);
+		comm = tep_data_comm_from_pid(pevent, tasks[i]);
 
 		gtk_tree_store_append(treestore, &iter, NULL);
 
@@ -888,7 +874,7 @@ static void task_cursor_changed(gpointer data, GtkTreeView *treeview)
 }
 
 static GtkWidget *
-create_task_view(struct pevent *pevent,
+create_task_view(struct tep_handle *pevent,
 		 gint *tasks, gint *selected,
 		 gboolean *start)
 {
@@ -971,7 +957,7 @@ void trace_task_dialog(struct tracecmd_input *handle,
 		       trace_task_cb_func func,
 		       gpointer data)
 {
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 	GtkWidget *dialog;
 	GtkWidget *scrollwin;
 	GtkWidget *view;
@@ -1070,7 +1056,7 @@ gboolean event_is_enabled(gint *events, gint events_size, gint event)
 }
 
 static GtkTreeModel *
-create_tree_event_model(struct pevent *pevent,
+create_tree_event_model(struct tep_handle *pevent,
 			struct event_filter *filter,
 			gboolean all_events, gchar **systems_set,
 			gint *event_ids_set)
@@ -1100,7 +1086,7 @@ create_tree_event_model(struct pevent *pevent,
 			   COL_ACTIVE_START, FALSE,
 			   -1);
 
-	events = pevent_list_events(pevent, EVENT_SORT_SYSTEM);
+	events = tep_list_events(pevent, EVENT_SORT_SYSTEM);
 	if (!events)
 		return GTK_TREE_MODEL(treestore);
 
@@ -1139,12 +1125,12 @@ create_tree_event_model(struct pevent *pevent,
 
 		normal = TRUE;
 		if (active && filter) {
-			if (pevent_event_filtered(filter, event->id) &&
-			    !pevent_filter_event_has_trivial(filter, event->id,
+			if (tep_event_filtered(filter, event->id) &&
+			    !tep_filter_event_has_trivial(filter, event->id,
 							     FILTER_TRIVIAL_BOTH))
 				normal = FALSE;
 			/* Make trivial false not selected */
-			else if (pevent_filter_event_has_trivial(filter, event->id,
+			else if (tep_filter_event_has_trivial(filter, event->id,
 								 FILTER_TRIVIAL_FALSE))
 				active = FALSE;
 		}
@@ -1366,7 +1352,7 @@ static void expand_rows(GtkTreeView *tree, GtkTreeModel *model,
  * @events: Array of event ids of events that should be selecetd.
  */
 int trace_update_event_view(GtkWidget *event_view,
-			    struct pevent *pevent,
+			    struct tep_handle *pevent,
 			    struct event_filter *filter,
 			    gboolean all_events,
 			    gchar **systems, gint *events)
@@ -1399,7 +1385,7 @@ int trace_update_event_view(GtkWidget *event_view,
  * Returns a tree view widget of the events.
  */
 GtkWidget *
-trace_create_event_list_view(struct pevent *pevent,
+trace_create_event_list_view(struct tep_handle *pevent,
 			     struct event_filter *filter,
 			     gboolean all_events, gchar **systems,
 			     gint *events)
@@ -1566,7 +1552,7 @@ static void accept_events(GtkWidget *view,
 	free(events);
 }
 
-static void filter_event_dialog(struct pevent *pevent,
+static void filter_event_dialog(struct tep_handle *pevent,
 				struct event_filter *filter,
 				gboolean all_events,
 				gchar **systems, gint *events,
@@ -1635,7 +1621,7 @@ void trace_filter_event_dialog(struct tracecmd_input *handle,
 			       trace_filter_event_cb_func func,
 			       gpointer data)
 {
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 
 	if (!handle)
 		return;
@@ -1648,7 +1634,7 @@ void trace_filter_event_dialog(struct tracecmd_input *handle,
 			    events, func, data);
 }
 
-void trace_filter_pevent_dialog(struct pevent *pevent,
+void trace_filter_pevent_dialog(struct tep_handle *pevent,
 				gboolean all_events,
 				gchar **systems, gint *events,
 				trace_filter_event_cb_func func,
@@ -1678,7 +1664,7 @@ void trace_filter_event_filter_dialog(struct tracecmd_input *handle,
 				      trace_filter_event_cb_func func,
 				      gpointer data)
 {
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 	gchar **systems;
 	gint *event_ids;
 
@@ -1936,7 +1922,7 @@ void trace_filter_convert_filter_to_names(struct event_filter *filter,
 					  gchar ***systems,
 					  gint **event_ids)
 {
-	struct pevent *pevent = filter->pevent;
+	struct tep_handle *pevent = filter->pevent;
 	struct event_format **events;
 	struct event_format *event;
 	char *last_system = NULL;
@@ -1951,7 +1937,7 @@ void trace_filter_convert_filter_to_names(struct event_filter *filter,
 	if (event_ids)
 		*event_ids = NULL;
 
-	events = pevent_list_events(pevent, EVENT_SORT_SYSTEM);
+	events = tep_list_events(pevent, EVENT_SORT_SYSTEM);
 
 	for (i = 0; events[i]; i++) {
 		event = events[i];
@@ -1964,7 +1950,7 @@ void trace_filter_convert_filter_to_names(struct event_filter *filter,
 			all_selected = 1;
 		}
 
-		if (pevent_filter_event_has_trivial(filter, event->id,
+		if (tep_filter_event_has_trivial(filter, event->id,
 						    FILTER_TRIVIAL_TRUE)) {
 			if (!all_selected || !systems)
 				*event_ids = tracecmd_add_id(*event_ids, event->id, event_count++);
@@ -1978,7 +1964,7 @@ void trace_filter_convert_filter_to_names(struct event_filter *filter,
 			all_selected = 0;
 
 			/* If this event is filtered, still add it */
-			if (pevent_event_filtered(filter, event->id))
+			if (tep_event_filtered(filter, event->id))
 				*event_ids = tracecmd_add_id(*event_ids, event->id, event_count++);
 		}
 		last_system = event->system;
@@ -1998,7 +1984,7 @@ void trace_filter_convert_char_to_filter(struct event_filter *filter,
 					 gchar **systems,
 					 gint *events)
 {
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 	struct event_filter *copy;
 	struct event_format *event;
 	int i;
@@ -2006,28 +1992,28 @@ void trace_filter_convert_char_to_filter(struct event_filter *filter,
 	pevent = filter->pevent;
 
 	/* Make a copy to use later */
-	copy = pevent_filter_alloc(pevent);
-	pevent_filter_copy(copy, filter);
-	pevent_filter_reset(filter);
+	copy = tep_filter_alloc(pevent);
+	tep_filter_copy(copy, filter);
+	tep_filter_reset(filter);
 
 	if (systems) {
 		for (i = 0; systems[i]; i++)
-			pevent_filter_add_filter_str(filter,
-						     systems[i]);
+			tep_filter_add_filter_str(filter,
+						  systems[i]);
 	}
 
 	if (events) {
 		for (i = 0; events[i] >= 0; i++) {
-			event = pevent_find_event(filter->pevent, events[i]);
+			event = tep_find_event(filter->pevent, events[i]);
 			if (event)
-				pevent_filter_add_filter_str(filter,
-							     event->name);
+				tep_filter_add_filter_str(filter,
+							  event->name);
 		}
 	}
 
-	pevent_update_trivial(filter, copy, FILTER_TRIVIAL_BOTH);
+	tep_update_trivial(filter, copy, FILTER_TRIVIAL_BOTH);
 
-	pevent_filter_free(copy);
+	tep_filter_free(copy);
 }
 
 int trace_filter_save_events(struct tracecmd_xml_handle *handle,
@@ -2046,11 +2032,11 @@ int trace_filter_save_events(struct tracecmd_xml_handle *handle,
 		tracecmd_xml_write_element(handle, "System", "%s", systems[i]);
 
 	for (i = 0; event_ids && event_ids[i] > 0; i++) {
-		str = pevent_filter_make_string(filter, event_ids[i]);
+		str = tep_filter_make_string(filter, event_ids[i]);
 		if (!str)
 			continue;
 
-		event = pevent_find_event(filter->pevent, event_ids[i]);
+		event = tep_find_event(filter->pevent, event_ids[i]);
 		if (event) {
 
 			/* skip not filtered items */
@@ -2076,13 +2062,13 @@ int trace_filter_save_events(struct tracecmd_xml_handle *handle,
 }
 
 int trace_filter_save_tasks(struct tracecmd_xml_handle *handle,
-			    struct filter_task *filter)
+			    struct tracecmd_filter_id *filter)
 {
 	char buffer[100];
 	int *pids;
 	int i;
 
-	pids = filter_task_pids(filter);
+	pids = tracecmd_filter_ids(filter);
 	if (!pids)
 		return -1;
 
@@ -2112,7 +2098,7 @@ int trace_filter_load_events(struct event_filter *event_filter,
 
 		if (strcmp(name, "System") == 0) {
 			system = tracecmd_xml_node_value(handle, node);
-			pevent_filter_add_filter_str(event_filter,
+			tep_filter_add_filter_str(event_filter,
 						     system);
 		} else if (strcmp(name, "Event") == 0) {
 			system = NULL;
@@ -2159,8 +2145,8 @@ int trace_filter_load_events(struct event_filter *event_filter,
 						sprintf(buffer, "%s", event);
 					}
 				}
-				pevent_filter_add_filter_str(event_filter,
-							     buffer);
+				tep_filter_add_filter_str(event_filter,
+							  buffer);
 				free(buffer);
 			}
 		}
@@ -2171,7 +2157,7 @@ int trace_filter_load_events(struct event_filter *event_filter,
 	return 0;
 }
 
-int trace_filter_load_task_filter(struct filter_task *filter,
+int trace_filter_load_task_filter(struct tracecmd_filter_id *filter,
 				  struct tracecmd_xml_handle *handle,
 				  struct tracecmd_xml_system_node *node)
 {
@@ -2190,8 +2176,8 @@ int trace_filter_load_task_filter(struct filter_task *filter,
 		if (strcmp(name, "Task") == 0) {
 			task = tracecmd_xml_node_value(handle, node);
 			pid = atoi(task);
-			if (!filter_task_find_pid(filter, pid))
-				filter_task_add_pid(filter, pid);
+			if (!tracecmd_filter_id_find(filter, pid))
+				tracecmd_filter_id_add(filter, pid);
 		}
 		node = tracecmd_xml_node_next(node);
 	}
@@ -2201,8 +2187,8 @@ int trace_filter_load_task_filter(struct filter_task *filter,
 
 int trace_filter_load_filters(struct tracecmd_xml_handle *handle,
 			      const char *system_name,
-			      struct filter_task *task_filter,
-			      struct filter_task *hide_tasks)
+			      struct tracecmd_filter_id *task_filter,
+			      struct tracecmd_filter_id *hide_tasks)
 {
 	struct tracecmd_xml_system *system;
 	struct tracecmd_xml_system_node *syschild;
@@ -2240,19 +2226,19 @@ int trace_filter_load_filters(struct tracecmd_xml_handle *handle,
 
 int trace_filter_save_filters(struct tracecmd_xml_handle *handle,
 			      const char *system_name,
-			      struct filter_task *task_filter,
-			      struct filter_task *hide_tasks)
+			      struct tracecmd_filter_id *task_filter,
+			      struct tracecmd_filter_id *hide_tasks)
 {
 
 	tracecmd_xml_start_system(handle, system_name);
 
-	if (task_filter && filter_task_count(task_filter)) {
+	if (task_filter && tracecmd_filter_task_count(task_filter)) {
 		tracecmd_xml_start_sub_system(handle, "TaskFilter");
 		trace_filter_save_tasks(handle, task_filter);
 		tracecmd_xml_end_sub_system(handle);
 	}
 
-	if (hide_tasks && filter_task_count(hide_tasks)) {
+	if (hide_tasks && tracecmd_filter_task_count(hide_tasks)) {
 		tracecmd_xml_start_sub_system(handle, "HideTasks");
 		trace_filter_save_tasks(handle, hide_tasks);
 		tracecmd_xml_end_sub_system(handle);

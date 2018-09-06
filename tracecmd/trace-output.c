@@ -1,21 +1,7 @@
+// SPDX-License-Identifier: LGPL-2.1
 /*
  * Copyright (C) 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
  *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation;
- * version 2.1 of the License (not later!)
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this program; if not,  see <http://www.gnu.org/licenses>
- *
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #define _LARGEFILE64_SOURCE
 #include <dirent.h>
@@ -62,14 +48,14 @@ enum {
 };
 
 struct tracecmd_output {
-	int		fd;
-	int		page_size;
-	int		cpus;
-	struct pevent	*pevent;
-	char		*tracing_dir;
-	int		options_written;
-	int		nr_options;
-	struct list_head options;
+	int			fd;
+	int			page_size;
+	int			cpus;
+	struct tep_handle	*pevent;
+	char			*tracing_dir;
+	int			options_written;
+	int			nr_options;
+	struct list_head 	options;
 	struct tracecmd_msg_handle *msg_handle;
 };
 
@@ -130,7 +116,7 @@ void tracecmd_output_free(struct tracecmd_output *handle)
 		free(handle->tracing_dir);
 
 	if (handle->pevent)
-		pevent_unref(handle->pevent);
+		tep_unref(handle->pevent);
 
 	while (!list_empty(&handle->options)) {
 		option = container_of(handle->options.next,
@@ -786,7 +772,7 @@ create_file_fd(int fd, struct tracecmd_input *ihandle,
 	       struct tracecmd_msg_handle *msg_handle)
 {
 	struct tracecmd_output *handle;
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 	char buf[BUFSIZ];
 	int endian4;
 
@@ -822,7 +808,7 @@ create_file_fd(int fd, struct tracecmd_input *ihandle,
 		pevent = tracecmd_get_pevent(ihandle);
 		/* Use the pevent of the ihandle for later writes */
 		handle->pevent = tracecmd_get_pevent(ihandle);
-		pevent_ref(pevent);
+		tep_ref(pevent);
 		if (pevent->file_bigendian)
 			buf[0] = 1;
 		else
@@ -1246,7 +1232,7 @@ int tracecmd_attach_cpu_data_fd(int fd, int cpus, char * const *cpu_data_files)
 {
 	struct tracecmd_input *ihandle;
 	struct tracecmd_output *handle;
-	struct pevent *pevent;
+	struct tep_handle *pevent;
 	int ret = -1;
 
 	/* Move the file descriptor to the beginning */
@@ -1275,7 +1261,7 @@ int tracecmd_attach_cpu_data_fd(int fd, int cpus, char * const *cpu_data_files)
 	pevent = tracecmd_get_pevent(ihandle);
 	/* Use the pevent of the ihandle for later writes */
 	handle->pevent = tracecmd_get_pevent(ihandle);
-	pevent_ref(pevent);
+	tep_ref(pevent);
 	handle->page_size = tracecmd_page_size(ihandle);
 	list_head_init(&handle->options);
 
